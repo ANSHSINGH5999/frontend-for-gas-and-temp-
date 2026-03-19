@@ -3,272 +3,735 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>AEGIS Sentinel — Hybrid Control</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<title>AEGIS Sentinel — Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <style>
 :root {
-  --bg0:   #010608;
-  --bg1:   #050e18;
-  --bg2:   #081520;
-  --b1:    #0c2030;
-  --b2:    #112840;
-  --cyan:  #00e5ff;
-  --cdim:  rgba(0,229,255,0.1);
-  --green: #00ff88;
-  --red:   #ff1744;
-  --amber: #ffab00;
-  --text:  #a8d4f0;
-  --white: #e0f4ff;
-  --muted: #244560;
-  --muted2:#162c3e;
+  --bg0:#000a0f; --bg1:#010d17; --bg2:#021525;
+  --b1:#0a2035; --b2:#0f2d47; --b3:#163d5e;
+  --c:#00d4ff; --c2:#00ffcc; --c3:#0099ff;
+  --g:#00ff88; --r:#ff1744; --o:#ff6d00; --y:#ffd600;
+  --t:#94c8e0; --m:#3a6a88; --dim:#1a3d56;
+  --glow:0 0 20px rgba(0,212,255,0.4);
+  --glow2:0 0 30px rgba(0,212,255,0.6);
 }
+
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg0);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,229,255,0.012) 3px,rgba(0,229,255,0.012) 4px);pointer-events:none;z-index:900}
-body::after{content:'';position:fixed;inset:0;background-image:radial-gradient(rgba(0,229,255,0.05) 1px,transparent 1px);background-size:30px 30px;pointer-events:none;z-index:0}
+html{font-size:14px;scroll-behavior:smooth}
 
-/* HEADER */
-header{position:sticky;top:0;z-index:100;background:rgba(1,6,8,0.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--b2);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:12px}
-.shield{width:40px;height:40px;border:1.5px solid var(--cyan);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(0,229,255,0.3);animation:sp 3s ease-in-out infinite}
-@keyframes sp{0%,100%{box-shadow:0 0 20px rgba(0,229,255,0.3)}50%{box-shadow:0 0 40px rgba(0,229,255,0.55)}}
-.brand-name{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--cyan);letter-spacing:5px;text-shadow:0 0 20px rgba(0,229,255,0.4)}
-.brand-sub{font-size:9px;color:var(--muted);letter-spacing:3px;margin-top:2px}
-.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.badge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;border:1px solid var(--b2);font-size:10px;letter-spacing:1px;background:var(--bg1);transition:all 0.3s}
-.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:all 0.3s}
-.badge.live .dot{background:var(--green);box-shadow:0 0 8px var(--green);animation:bl 1.5s infinite}
-.badge.dead .dot{background:var(--red);box-shadow:0 0 8px var(--red);animation:bl 0.7s infinite}
-.badge.live{border-color:rgba(0,255,136,0.25);color:var(--green)}
-.badge.dead{border-color:rgba(255,23,68,0.3);color:var(--red)}
-@keyframes bl{0%,100%{opacity:1}50%{opacity:0.3}}
-#hdr-clock{font-family:'Orbitron',monospace;font-size:11px;color:var(--cyan);opacity:0.5;letter-spacing:2px}
-.cfg-btn{background:none;border:1px solid var(--b2);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;padding:5px 10px;border-radius:4px;cursor:pointer;transition:all 0.2s}
-.cfg-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+body{
+  background:var(--bg0);
+  color:var(--t);
+  font-family:'Share Tech Mono',monospace;
+  min-height:100vh;
+  overflow-x:hidden;
+  cursor:crosshair;
+}
 
-/* ALARM */
-#alarm-strip{display:none;padding:10px 24px;background:rgba(255,23,68,0.07);border-bottom:1px solid rgba(255,23,68,0.35);animation:af 0.6s ease-in-out infinite alternate;align-items:center;justify-content:space-between;position:relative;z-index:50}
+/* ── CANVAS BG ── */
+#bg-canvas{position:fixed;inset:0;z-index:0;opacity:0.4}
+
+/* ── SCANLINES ── */
+.scanlines{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,0.018) 2px,rgba(0,212,255,0.018) 4px);
+}
+
+/* ── VIGNETTE ── */
+.vignette{
+  position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.7) 100%);
+}
+
+/* ── HEADER ── */
+header{
+  position:sticky;top:0;z-index:200;
+  background:rgba(0,10,15,0.92);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--b2);
+  padding:0 28px;
+  display:flex;align-items:center;justify-content:space-between;
+  height:60px;
+}
+
+header::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--c),var(--c2),var(--c),transparent);
+  animation:hline 4s linear infinite;
+}
+
+@keyframes hline{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}
+
+.brand{display:flex;align-items:center;gap:16px}
+
+.logo-hex{
+  width:44px;height:44px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+
+.logo-hex svg{position:absolute;inset:0;animation:rot 8s linear infinite}
+@keyframes rot{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.logo-inner{
+  font-size:18px;z-index:1;
+  filter:drop-shadow(0 0 8px var(--c));
+}
+
+.brand-info{}
+.brand-name{
+  font-family:'Orbitron',monospace;font-size:15px;font-weight:900;
+  color:var(--c);letter-spacing:6px;
+  text-shadow:0 0 20px rgba(0,212,255,0.6);
+  line-height:1;
+}
+.brand-sub{font-size:9px;color:var(--m);letter-spacing:4px;margin-top:3px}
+
+.hdr-center{
+  display:flex;align-items:center;gap:6px;
+  font-family:'Orbitron',monospace;font-size:20px;font-weight:700;
+  color:var(--c);letter-spacing:4px;
+  text-shadow:0 0 15px rgba(0,212,255,0.5);
+}
+
+#hdr-clock{font-family:'Orbitron',monospace;font-size:13px;color:var(--c);letter-spacing:3px;opacity:0.7}
+
+.hdr-right{display:flex;align-items:center;gap:10px}
+
+.status-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--m);
+  transition:all 0.3s;flex-shrink:0;
+}
+
+.badge{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:3px;
+  border:1px solid var(--b2);
+  font-size:9px;letter-spacing:2px;
+  background:rgba(1,13,23,0.8);
+  transition:all 0.3s;
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+}
+
+.badge.live{border-color:rgba(0,255,136,0.4);color:var(--g)}
+.badge.live .status-dot{background:var(--g);box-shadow:0 0 10px var(--g);animation:pulse 1.5s infinite}
+.badge.dead{border-color:rgba(255,23,68,0.4);color:var(--r)}
+.badge.dead .status-dot{background:var(--r);box-shadow:0 0 10px var(--r);animation:pulse 0.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+.cfg-btn{
+  background:rgba(0,212,255,0.06);
+  border:1px solid var(--b3);color:var(--m);
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
+  padding:6px 14px;cursor:pointer;transition:all 0.2s;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+}
+.cfg-btn:hover{border-color:var(--c);color:var(--c);background:rgba(0,212,255,0.12)}
+
+/* ── ALARM STRIP ── */
+#alarm-strip{
+  display:none;position:relative;z-index:100;
+  padding:10px 28px;
+  background:rgba(255,23,68,0.08);
+  border-bottom:1px solid rgba(255,23,68,0.4);
+  align-items:center;justify-content:space-between;
+  animation:alm 0.5s ease-in-out infinite alternate;
+}
 #alarm-strip.show{display:flex}
-@keyframes af{from{background:rgba(255,23,68,0.05)}to{background:rgba(255,23,68,0.16)}}
-.alarm-msg{font-family:'Orbitron',monospace;font-size:12px;color:var(--red);letter-spacing:3px;display:flex;align-items:center;gap:8px}
+@keyframes alm{from{background:rgba(255,23,68,0.05)}to{background:rgba(255,23,68,0.15)}}
 
-/* MAIN */
-main{position:relative;z-index:10;max-width:1100px;margin:0 auto;padding:22px 20px 40px}
+.alarm-msg{
+  font-family:'Orbitron',monospace;font-size:11px;
+  color:var(--r);letter-spacing:4px;
+  text-shadow:0 0 15px var(--r);
+  display:flex;align-items:center;gap:12px;
+}
 
-/* SOURCE TAGS */
-.src-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-.src-tag{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;font-size:10px;letter-spacing:1px;border:1px solid var(--b2);background:var(--bg1)}
-.src-tag .dot{width:6px;height:6px;border-radius:50%}
-.src-tag.fb{border-color:rgba(255,171,0,0.3);color:var(--amber)}
-.src-tag.fb .dot{background:var(--amber);box-shadow:0 0 6px var(--amber)}
-.src-tag.rw{border-color:rgba(0,229,255,0.3);color:var(--cyan)}
-.src-tag.rw .dot{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.alarm-msg::before{
+  content:'';width:10px;height:10px;border-radius:50%;
+  background:var(--r);box-shadow:0 0 15px var(--r);
+  animation:pulse 0.4s infinite;flex-shrink:0;
+}
 
-/* METRIC CARDS */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-@media(max-width:820px){.metrics{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:460px){.metrics{grid-template-columns:1fr}}
-.mc{background:var(--bg1);border:1px solid var(--b1);border-radius:12px;padding:18px 20px;position:relative;overflow:hidden;transition:border-color 0.3s,box-shadow 0.3s}
-.mc::after{content:'';position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0.5}
-.mc.danger{border-color:rgba(255,23,68,0.4);box-shadow:0 0 22px rgba(255,23,68,0.07)}
-.mc.warning{border-color:rgba(255,109,0,0.4);box-shadow:0 0 22px rgba(255,109,0,0.07)}
-.mc-lbl{font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
-.mc-val{font-family:'Orbitron',monospace;font-size:32px;font-weight:700;line-height:1;color:var(--cyan);text-shadow:0 0 14px rgba(0,229,255,0.3);transition:color 0.3s,text-shadow 0.3s}
-.mc-val.ok    {color:var(--green);text-shadow:0 0 14px rgba(0,255,136,0.3)}
-.mc-val.warn  {color:var(--amber);text-shadow:0 0 14px rgba(255,171,0,0.4)}
-.mc-val.danger{color:var(--red);  text-shadow:0 0 14px rgba(255,23,68,0.4)}
-.mc-unit{font-size:11px;color:var(--muted);margin-left:3px}
-.mc-sub{font-size:10px;color:var(--muted);margin-top:6px}
-.pill{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:3px 10px;border-radius:20px;font-size:10px;font-family:'Orbitron',monospace;letter-spacing:1px;font-weight:600;border:1px solid currentColor}
-.pill.on  {color:var(--green);background:rgba(0,255,136,0.08)}
-.pill.off {color:var(--muted);background:var(--muted2);border-color:var(--b2)}
-.pill.alm {color:var(--red);  background:rgba(255,23,68,0.08)}
-.pill.safe{color:var(--green);background:rgba(0,255,136,0.08)}
-.gbar-bg{margin-top:8px;height:4px;border-radius:3px;background:var(--b2);overflow:hidden}
-.gbar{height:100%;border-radius:3px;background:var(--green);transition:width 0.6s ease,background 0.3s}
+/* ── MAIN ── */
+main{
+  position:relative;z-index:10;
+  max-width:1280px;margin:0 auto;
+  padding:20px 24px 48px;
+}
 
-/* PANEL */
-.panel{background:var(--bg1);border:1px solid var(--b1);border-radius:12px;overflow:hidden}
-.ph{padding:12px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between}
-.pt{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase}
+/* ── TOP STATS BAR ── */
+.stats-bar{
+  display:flex;gap:8px;margin-bottom:20px;
+  flex-wrap:wrap;
+}
+
+.stat-chip{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;
+  background:rgba(1,13,23,0.8);
+  border:1px solid var(--b2);
+  border-radius:2px;
+  font-size:10px;letter-spacing:1.5px;
+  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+}
+
+.stat-chip .label{color:var(--m)}
+.stat-chip .val{color:var(--c);font-family:'Orbitron',monospace;font-size:11px}
+
+/* ── BIG GAUGES ROW ── */
+.gauges-row{
+  display:grid;
+  grid-template-columns:1fr 1fr 280px;
+  gap:16px;
+  margin-bottom:16px;
+}
+
+@media(max-width:900px){.gauges-row{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.gauges-row{grid-template-columns:1fr}}
+
+/* ── GAUGE CARD ── */
+.gauge-card{
+  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
+  border:1px solid var(--b2);
+  border-radius:4px;
+  padding:20px;
+  position:relative;
+  overflow:hidden;
+  transition:border-color 0.3s,box-shadow 0.3s;
+}
+
+.gauge-card::before{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--card-top,var(--c)),transparent);
+  opacity:0.7;
+}
+
+.gauge-card::after{
+  content:'';position:absolute;
+  top:0;left:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--card-top,var(--c)),transparent);
+  opacity:0.4;
+}
+
+.gauge-card.danger{--card-top:var(--r);border-color:rgba(255,23,68,0.4);box-shadow:0 0 30px rgba(255,23,68,0.08)}
+.gauge-card.warning{--card-top:var(--o);border-color:rgba(255,109,0,0.4);box-shadow:0 0 30px rgba(255,109,0,0.08)}
+.gauge-card.ok{--card-top:var(--g)}
+
+.gc-corner{
+  position:absolute;top:8px;right:8px;
+  font-size:9px;letter-spacing:2px;color:var(--m);
+  opacity:0.6;
+}
+
+.gc-label{
+  font-size:9px;letter-spacing:4px;color:var(--m);
+  text-transform:uppercase;margin-bottom:12px;
+}
+
+/* RADIAL GAUGE */
+.radial-wrap{
+  display:flex;justify-content:center;margin:8px 0 12px;
+  position:relative;
+}
+
+.radial-wrap canvas{filter:drop-shadow(0 0 8px rgba(0,212,255,0.3))}
+
+.radial-center{
+  position:absolute;
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;margin-top:8px;
+}
+
+.radial-val{
+  font-family:'Orbitron',monospace;font-size:28px;font-weight:700;
+  color:var(--c);line-height:1;
+  text-shadow:0 0 20px rgba(0,212,255,0.5);
+  transition:color 0.3s;
+}
+
+.radial-val.ok    {color:var(--g);text-shadow:0 0 20px rgba(0,255,136,0.5)}
+.radial-val.warn  {color:var(--o);text-shadow:0 0 20px rgba(255,109,0,0.5)}
+.radial-val.danger{color:var(--r);text-shadow:0 0 20px rgba(255,23,68,0.6)}
+
+.radial-unit{font-size:11px;color:var(--m);margin-top:2px}
+
+.gc-sub{font-size:10px;color:var(--m);margin-top:4px;text-align:center}
+
+/* LINEAR BAR */
+.lin-bar-wrap{margin:12px 0 8px}
+.lin-bar-track{
+  height:6px;background:var(--b1);border-radius:2px;
+  overflow:hidden;position:relative;
+}
+.lin-bar-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--c3),var(--c));
+  transition:width 0.6s ease,background 0.3s;
+  position:relative;
+}
+.lin-bar-fill::after{
+  content:'';position:absolute;right:0;top:0;bottom:0;width:4px;
+  background:white;opacity:0.6;
+  box-shadow:0 0 8px white;
+}
+.lin-bar-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--m);margin-top:4px}
+
+/* STATUS CARDS */
+.status-col{display:flex;flex-direction:column;gap:12px}
+
+.status-card{
+  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
+  border:1px solid var(--b2);border-radius:4px;
+  padding:16px 18px;flex:1;
+  position:relative;overflow:hidden;
+  transition:all 0.3s;
+}
+
+.status-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1.5px;
+  background:linear-gradient(90deg,transparent,var(--sc-clr,var(--c)),transparent);
+}
+
+.sc-label{font-size:9px;letter-spacing:3px;color:var(--m);margin-bottom:8px;text-transform:uppercase}
+.sc-val{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:var(--c);line-height:1;transition:all 0.3s}
+.sc-val.ok{color:var(--g)}
+.sc-val.off{color:var(--m)}
+.sc-val.alm{color:var(--r)}
+
+.sc-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  margin-top:8px;padding:3px 10px;border-radius:2px;
+  font-size:9px;font-family:'Orbitron',monospace;letter-spacing:1.5px;font-weight:700;
+  border:1px solid currentColor;
+  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+}
+.sc-pill.on  {color:var(--g);background:rgba(0,255,136,0.08)}
+.sc-pill.off {color:var(--m);background:rgba(26,61,86,0.5);border-color:var(--b2)}
+.sc-pill.alm {color:var(--r);background:rgba(255,23,68,0.08)}
+.sc-pill.safe{color:var(--g);background:rgba(0,255,136,0.08)}
+
+/* ── BOTTOM GRID ── */
+.bottom-grid{
+  display:grid;
+  grid-template-columns:320px 1fr;
+  gap:16px;
+  margin-bottom:16px;
+}
+@media(max-width:800px){.bottom-grid{grid-template-columns:1fr}}
+
+/* ── PANEL ── */
+.panel{
+  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
+  border:1px solid var(--b2);border-radius:4px;overflow:hidden;
+}
+
+.ph{
+  padding:12px 18px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,212,255,0.03);
+}
+
+.pt{
+  font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;
+  color:var(--c);text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+}
+
+.pt::before{
+  content:'';width:4px;height:4px;background:var(--c);
+  box-shadow:0 0 6px var(--c);border-radius:50%;
+}
+
 .pb{padding:18px}
-.chart-wrap{height:100px;position:relative}
 
-/* LOWER */
-.lower{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-@media(max-width:700px){.lower{grid-template-columns:1fr}}
+/* CHART */
+.chart-wrap{height:120px;position:relative}
 
-/* CONTROLS */
-.mode-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.mbtn{padding:10px;border-radius:8px;border:1px solid var(--b2);background:transparent;color:var(--muted);font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all 0.18s}
-.mbtn:hover{border-color:var(--cyan);color:var(--cyan);background:var(--cdim)}
-.mbtn.active{border-color:var(--cyan);color:var(--cyan);background:var(--cdim);box-shadow:0 0 18px rgba(0,229,255,0.2)}
-.crow{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--b1)}
-.crow:last-child{border:none}
-.clbl{font-size:12px;color:var(--white)}
-.csub{font-size:10px;color:var(--muted);margin-top:3px}
-.tgl{position:relative;width:48px;height:24px;flex-shrink:0}
+/* ── CONTROL PANEL ── */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+
+.mbtn{
+  padding:10px;border-radius:2px;
+  border:1px solid var(--b2);background:transparent;
+  color:var(--m);font-family:'Orbitron',monospace;
+  font-size:9px;letter-spacing:2px;cursor:pointer;
+  transition:all 0.2s;text-transform:uppercase;
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+}
+.mbtn:hover{border-color:var(--c);color:var(--c);background:rgba(0,212,255,0.08)}
+.mbtn.active{
+  border-color:var(--c);color:var(--c);
+  background:rgba(0,212,255,0.12);
+  box-shadow:0 0 20px rgba(0,212,255,0.15);
+}
+
+.ctrl-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 0;border-bottom:1px solid rgba(10,32,53,0.8);
+}
+.ctrl-row:last-child{border:none}
+
+.ctrl-lbl{font-size:11px;color:white}
+.ctrl-sub{font-size:9px;color:var(--m);margin-top:2px}
+
+/* TOGGLE */
+.tgl{position:relative;width:50px;height:25px;flex-shrink:0}
 .tgl input{opacity:0;width:0;height:0}
-.ttrack{position:absolute;inset:0;background:var(--bg2);border-radius:24px;cursor:pointer;border:1px solid var(--b2);transition:all 0.2s}
-.ttrack::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:all 0.2s}
-.tgl input:checked+.ttrack{background:rgba(0,255,136,0.15);border-color:var(--green)}
-.tgl input:checked+.ttrack::before{transform:translateX(24px);background:var(--green);box-shadow:0 0 8px var(--green)}
+.ttrack{
+  position:absolute;inset:0;
+  background:rgba(10,32,53,0.8);
+  border-radius:0;border:1px solid var(--b2);
+  cursor:pointer;transition:all 0.2s;
+  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+}
+.ttrack::before{
+  content:'';position:absolute;
+  width:17px;height:17px;left:3px;top:3px;
+  background:var(--m);border-radius:0;
+  transition:all 0.2s;
+}
+.tgl input:checked+.ttrack{background:rgba(0,255,136,0.15);border-color:var(--g)}
+.tgl input:checked+.ttrack::before{transform:translateX(25px);background:var(--g);box-shadow:0 0 10px var(--g)}
 
-/* LOG */
-.log-list{height:160px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--b2) transparent}
-.li{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid rgba(12,32,48,0.6);font-size:11px;animation:fi 0.25s ease}
-@keyframes fi{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-.lt{color:var(--muted);min-width:58px;flex-shrink:0}
-.lm{color:var(--text)}.lm.w{color:var(--amber)}.lm.a{color:var(--red)}.lm.ok{color:var(--green)}
-.gbtn{background:none;border:1px solid var(--b2);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;padding:4px 10px;cursor:pointer;border-radius:4px;transition:all 0.2s}
-.gbtn:hover{border-color:var(--cyan);color:var(--cyan)}
-.rbtn{background:rgba(255,23,68,0.08);border:1px solid rgba(255,23,68,0.4);color:var(--red);font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 12px;cursor:pointer;border-radius:4px}
+/* ── LOG ── */
+.log-wrap{height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--b2) transparent}
+.log-item{
+  display:flex;gap:10px;padding:5px 0;
+  border-bottom:1px solid rgba(10,32,53,0.5);
+  font-size:10px;
+  animation:logIn 0.2s ease;
+}
+@keyframes logIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.log-t{color:var(--m);min-width:56px;flex-shrink:0}
+.log-m{color:var(--t)}
+.log-m.w{color:var(--y)}
+.log-m.a{color:var(--r)}
+.log-m.ok{color:var(--g)}
 
-/* CONFIG MODAL */
-#cfg-modal{display:none;position:fixed;inset:0;background:rgba(1,6,8,0.92);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(10px)}
+/* SMALL BTN */
+.sbtn{
+  background:none;border:1px solid var(--b2);color:var(--m);
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
+  padding:4px 10px;cursor:pointer;border-radius:2px;transition:all 0.2s;
+}
+.sbtn:hover{border-color:var(--c);color:var(--c)}
+
+.rbtn{
+  background:rgba(255,23,68,0.08);border:1px solid rgba(255,23,68,0.4);
+  color:var(--r);font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:1px;padding:4px 12px;cursor:pointer;border-radius:2px;
+}
+
+/* ── CONFIG MODAL ── */
+#cfg-modal{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,5,10,0.94);z-index:9999;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(12px);
+}
 #cfg-modal.show{display:flex}
-.cbox{background:var(--bg1);border:1px solid var(--b2);border-radius:16px;padding:32px;width:min(500px,94vw);box-shadow:0 0 40px rgba(0,229,255,0.1)}
-.cbox h2{font-family:'Orbitron',monospace;color:var(--cyan);font-size:14px;letter-spacing:3px;margin-bottom:6px}
-.cbox p{font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.75}
-.section-title{font-size:10px;letter-spacing:2px;color:var(--cyan);text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--b2)}
-.fg{margin-bottom:12px}
-.fg label{display:block;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:5px;text-transform:uppercase}
-.fg input{width:100%;background:rgba(0,229,255,0.03);border:1px solid var(--b2);border-radius:6px;padding:8px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color 0.2s}
-.fg input:focus{border-color:var(--cyan)}
-.fg input::placeholder{color:var(--muted)}
-.cbtn{width:100%;padding:11px;border-radius:8px;background:rgba(0,229,255,0.1);border:1px solid var(--cyan);color:var(--cyan);font-family:'Orbitron',monospace;font-size:11px;letter-spacing:3px;cursor:pointer;transition:all 0.2s;margin-top:4px}
-.cbtn:hover{background:rgba(0,229,255,0.2)}
 
-footer{position:relative;z-index:10;text-align:center;padding:12px;font-size:9px;letter-spacing:2px;color:var(--muted);border-top:1px solid var(--b1)}
+.cbox{
+  background:linear-gradient(135deg,#010d17,#021525);
+  border:1px solid var(--b3);border-radius:6px;
+  padding:36px;width:min(520px,94vw);
+  box-shadow:0 0 60px rgba(0,212,255,0.12),inset 0 0 60px rgba(0,212,255,0.03);
+  position:relative;
+}
+
+.cbox::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--c),var(--c2),var(--c),transparent);
+}
+
+.cbox h2{
+  font-family:'Orbitron',monospace;color:var(--c);
+  font-size:14px;letter-spacing:4px;margin-bottom:4px;
+}
+
+.cbox p{font-size:10px;color:var(--m);margin-bottom:24px;line-height:1.8;letter-spacing:0.5px}
+
+.sec-title{
+  font-size:9px;letter-spacing:3px;color:var(--c2);
+  text-transform:uppercase;margin-bottom:10px;
+  padding-bottom:6px;border-bottom:1px solid var(--b2);
+  display:flex;align-items:center;gap:8px;
+}
+.sec-title::before{content:'';width:4px;height:4px;background:var(--c2);border-radius:50%;box-shadow:0 0 6px var(--c2)}
+
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:9px;letter-spacing:2px;color:var(--m);margin-bottom:5px;text-transform:uppercase}
+.fg input{
+  width:100%;
+  background:rgba(0,212,255,0.04);
+  border:1px solid var(--b2);border-radius:2px;
+  padding:9px 13px;
+  color:var(--t);font-family:'Share Tech Mono',monospace;font-size:11px;
+  outline:none;transition:border-color 0.2s;
+  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+}
+.fg input:focus{border-color:var(--c)}
+.fg input::placeholder{color:var(--m)}
+
+.cbtn{
+  width:100%;padding:12px;border-radius:2px;
+  background:linear-gradient(90deg,rgba(0,212,255,0.12),rgba(0,255,204,0.08));
+  border:1px solid var(--c);color:var(--c);
+  font-family:'Orbitron',monospace;font-size:10px;letter-spacing:4px;
+  cursor:pointer;transition:all 0.2s;margin-top:6px;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+}
+.cbtn:hover{background:linear-gradient(90deg,rgba(0,212,255,0.22),rgba(0,255,204,0.15));box-shadow:var(--glow)}
+
+/* ── FOOTER ── */
+footer{
+  position:relative;z-index:10;text-align:center;
+  padding:14px;font-size:9px;letter-spacing:3px;
+  color:var(--m);border-top:1px solid var(--b1);
+}
+
+/* ── CORNER DECORATIONS ── */
+.corner-tl,.corner-br{position:absolute;width:16px;height:16px}
+.corner-tl{top:8px;left:8px;border-top:1.5px solid var(--c);border-left:1.5px solid var(--c)}
+.corner-br{bottom:8px;right:8px;border-bottom:1.5px solid var(--c);border-right:1.5px solid var(--c)}
+
+/* ── ANIMATIONS ── */
+.fade-in{animation:fadeIn 0.6s ease forwards;opacity:0}
+@keyframes fadeIn{to{opacity:1}}
+
+.slide-up{animation:slideUp 0.5s ease forwards;opacity:0;transform:translateY(20px)}
+@keyframes slideUp{to{opacity:1;transform:none}}
+
+/* stagger */
+.fade-in:nth-child(1){animation-delay:0.1s}
+.fade-in:nth-child(2){animation-delay:0.2s}
+.fade-in:nth-child(3){animation-delay:0.3s}
+.fade-in:nth-child(4){animation-delay:0.4s}
+
+/* GLITCH text */
+@keyframes glitch{
+  0%,90%,100%{transform:none;text-shadow:0 0 20px rgba(0,212,255,0.6)}
+  92%{transform:translateX(2px);text-shadow:-2px 0 var(--r),2px 0 var(--g)}
+  94%{transform:translateX(-2px);text-shadow:2px 0 var(--r),-2px 0 var(--g)}
+  96%{transform:none}
+}
+.brand-name{animation:glitch 8s ease-in-out infinite}
+
+@media(max-width:480px){
+  header{padding:0 14px}
+  .hdr-center{display:none}
+  main{padding:14px 12px 32px}
+}
 </style>
 </head>
 <body>
 
-<!-- CONFIG MODAL -->
+<canvas id="bg-canvas"></canvas>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<!-- ══ CONFIG MODAL ══ -->
 <div id="cfg-modal" class="show">
   <div class="cbox">
-    <h2>⚡ AEGIS HYBRID SETUP</h2>
-    <p>Firebase (realtime data) + Railway (control commands)</p>
+    <div class="corner-tl"></div>
+    <div class="corner-br"></div>
+    <h2>⚡ AEGIS COMMAND INIT</h2>
+    <p>Dual-source architecture: Firebase realtime data + Railway control backend.</p>
 
-    <div class="section-title">🔥 Firebase — Sensor Data</div>
+    <div class="sec-title">Firebase — Sensor Stream</div>
     <div class="fg"><label>API Key</label><input id="c-apikey" value="AIzaSyDsHvHnBnq0Kno1aydP6TGvTls2e5OL-J4"></div>
     <div class="fg"><label>Database URL</label><input id="c-dburl" value="https://knowaboutanshsingh-default-rtdb.firebaseio.com"></div>
     <div class="fg"><label>Project ID</label><input id="c-projid" value="knowaboutanshsingh"></div>
 
-    <div class="section-title" style="margin-top:16px">🚂 Railway — Control Commands</div>
-    <div class="fg"><label>Railway Backend URL</label><input id="c-railway" value="https://esp32-gas-and-temperature-production.up.railway.app" placeholder="pacific-forgiveness-production-5559.up.railway.app"></div>
+    <div class="sec-title" style="margin-top:18px">Railway — Control Backend</div>
+    <div class="fg"><label>Backend URL</label><input id="c-railway" value="https://gas-senor-and-fan-production.up.railway.app"></div>
 
-    <button class="cbtn" onclick="connectAll()">▶ CONNECT BOTH</button>
+    <button class="cbtn" onclick="connectAll()">▶ INITIALIZE SYSTEM</button>
   </div>
 </div>
 
-<!-- HEADER -->
+<!-- ══ HEADER ══ -->
 <header>
   <div class="brand">
-    <div class="shield">🛡</div>
-    <div>
-      <div class="brand-name">AEGIS SENTINEL</div>
-      <div class="brand-sub">Firebase Realtime + Railway Control</div>
+    <div class="logo-hex">
+      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="22,2 40,12 40,32 22,42 4,32 4,12" stroke="#00d4ff" stroke-width="1" fill="none" opacity="0.6"/>
+        <polygon points="22,8 36,16 36,30 22,38 8,30 8,16" stroke="#00ffcc" stroke-width="0.5" fill="none" opacity="0.4"/>
+      </svg>
+      <span class="logo-inner">🛡</span>
+    </div>
+    <div class="brand-info">
+      <div class="brand-name">AEGIS</div>
+      <div class="brand-sub">SENTINEL v4.0</div>
     </div>
   </div>
+
+  <div class="hdr-center" id="hdr-clock">--:--:--</div>
+
   <div class="hdr-right">
-    <span id="hdr-clock">--:--:--</span>
-    <div class="badge" id="fb-badge"><span class="dot"></span><span id="fb-txt">FIREBASE --</span></div>
-    <div class="badge" id="esp-badge"><span class="dot"></span><span id="esp-txt">ESP32 --</span></div>
-    <div class="badge" id="rw-badge"><span class="dot"></span><span id="rw-txt">RAILWAY --</span></div>
-    <button class="cfg-btn" onclick="document.getElementById('cfg-modal').classList.add('show')">⚙</button>
+    <div class="badge" id="fb-badge"><span class="status-dot"></span><span id="fb-txt">FIREBASE</span></div>
+    <div class="badge" id="esp-badge"><span class="status-dot"></span><span id="esp-txt">ESP32</span></div>
+    <div class="badge" id="rw-badge"><span class="status-dot"></span><span id="rw-txt">RAILWAY</span></div>
+    <button class="cfg-btn" onclick="document.getElementById('cfg-modal').classList.add('show')">⚙ CFG</button>
   </div>
 </header>
 
-<!-- ALARM STRIP -->
+<!-- ══ ALARM STRIP ══ -->
 <div id="alarm-strip">
-  <div class="alarm-msg">⚠ GAS LEAK — THRESHOLD EXCEEDED</div>
-  <button class="rbtn" onclick="sendControl({mute:true})">MUTE</button>
+  <div class="alarm-msg">CRITICAL — GAS THRESHOLD EXCEEDED — EVACUATE AREA</div>
+  <button class="rbtn" onclick="sendControl({mute:true})">SILENCE ALARM</button>
 </div>
 
-<!-- MAIN -->
+<!-- ══ MAIN ══ -->
 <main>
 
-  <!-- SOURCE TAGS -->
-  <div class="src-row">
-    <div class="src-tag fb"><span class="dot"></span>FIREBASE → Live sensor data (realtime)</div>
-    <div class="src-tag rw"><span class="dot"></span>RAILWAY → Control commands (write)</div>
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stat-chip"><span class="label">SYSTEM&nbsp;</span><span class="val" id="sys-status">OFFLINE</span></div>
+    <div class="stat-chip"><span class="label">MODE&nbsp;</span><span class="val" id="sys-mode">--</span></div>
+    <div class="stat-chip"><span class="label">DATA AGE&nbsp;</span><span class="val" id="sys-age">--</span></div>
+    <div class="stat-chip"><span class="label">UPDATES&nbsp;</span><span class="val" id="sys-updates">0</span></div>
+    <div class="stat-chip"><span class="label">UPTIME&nbsp;</span><span class="val" id="sys-uptime">--:--:--</span></div>
   </div>
 
-  <!-- METRICS -->
-  <div class="metrics">
-    <div class="mc" id="mc-temp">
-      <div class="mc-lbl">◈ Temperature</div>
-      <div><span class="mc-val" id="v-temp">--</span><span class="mc-unit">°C</span></div>
-      <div class="mc-sub" id="s-temp">Waiting...</div>
+  <!-- GAUGES ROW -->
+  <div class="gauges-row">
+
+    <!-- TEMP GAUGE -->
+    <div class="gauge-card fade-in" id="gc-temp">
+      <div class="corner-tl"></div>
+      <div class="gc-corner">THERMAL</div>
+      <div class="gc-label">◈ TEMPERATURE</div>
+      <div class="radial-wrap">
+        <canvas id="tempGauge" width="160" height="100"></canvas>
+        <div class="radial-center">
+          <div class="radial-val" id="v-temp">--</div>
+          <div class="radial-unit">°C</div>
+        </div>
+      </div>
+      <div class="lin-bar-wrap">
+        <div class="lin-bar-track"><div class="lin-bar-fill" id="temp-bar" style="width:0%"></div></div>
+        <div class="lin-bar-labels"><span>20°C</span><span>35°C</span><span>50°C</span></div>
+      </div>
+      <div class="gc-sub" id="s-temp">Waiting for ESP32...</div>
     </div>
-    <div class="mc" id="mc-gas">
-      <div class="mc-lbl">◈ Gas Level</div>
-      <div><span class="mc-val" id="v-gas">--</span><span class="mc-unit">ppm</span></div>
-      <div class="gbar-bg"><div class="gbar" id="gbar"></div></div>
-      <div class="mc-sub">Threshold: 100 ppm</div>
+
+    <!-- GAS GAUGE -->
+    <div class="gauge-card fade-in" id="gc-gas">
+      <div class="corner-tl"></div>
+      <div class="gc-corner">CHEMICAL</div>
+      <div class="gc-label">◈ GAS CONCENTRATION</div>
+      <div class="radial-wrap">
+        <canvas id="gasGauge" width="160" height="100"></canvas>
+        <div class="radial-center">
+          <div class="radial-val" id="v-gas">--</div>
+          <div class="radial-unit">ppm</div>
+        </div>
+      </div>
+      <div class="lin-bar-wrap">
+        <div class="lin-bar-track"><div class="lin-bar-fill" id="gas-bar" style="width:0%;background:linear-gradient(90deg,var(--g),var(--c))"></div></div>
+        <div class="lin-bar-labels"><span>0</span><span>100</span><span>400+</span></div>
+      </div>
+      <div class="gc-sub" id="s-gas">Threshold: 100 ppm</div>
     </div>
-    <div class="mc" id="mc-fan">
-      <div class="mc-lbl">◈ Fan / Relay</div>
-      <div class="mc-val" id="v-fan" style="font-size:20px">--</div>
-      <div id="pill-fan" class="pill off">● --</div>
-      <div class="mc-sub" id="s-fan">Mode: --</div>
+
+    <!-- STATUS COL -->
+    <div class="status-col fade-in">
+
+      <div class="status-card" id="sc-fan" style="--sc-clr:var(--c)">
+        <div class="corner-tl"></div>
+        <div class="sc-label">◈ RELAY / FAN</div>
+        <div class="sc-val off" id="v-fan">STOPPED</div>
+        <div id="pill-fan" class="sc-pill off">● OFFLINE</div>
+        <div style="font-size:9px;color:var(--m);margin-top:6px" id="s-fan">Mode: --</div>
+      </div>
+
+      <div class="status-card" id="sc-alarm" style="--sc-clr:var(--g)">
+        <div class="corner-tl"></div>
+        <div class="sc-label">◈ ALARM STATUS</div>
+        <div class="sc-val ok" id="v-alarm">CLEAR</div>
+        <div id="pill-alarm" class="sc-pill safe">● SAFE</div>
+        <div style="font-size:9px;color:var(--m);margin-top:6px" id="s-alarm">Muted: NO</div>
+      </div>
+
     </div>
-    <div class="mc" id="mc-alarm">
-      <div class="mc-lbl">◈ Alarm</div>
-      <div class="mc-val" id="v-alarm" style="font-size:20px">--</div>
-      <div id="pill-alarm" class="pill safe">● SAFE</div>
-      <div class="mc-sub" id="s-alarm">Muted: --</div>
-    </div>
+
   </div>
 
-  <!-- CHART -->
-  <div class="panel">
+  <!-- CHART PANEL -->
+  <div class="panel slide-up" style="margin-bottom:16px">
     <div class="ph">
-      <span class="pt">📈 Temperature — Firebase Realtime</span>
-      <span style="font-size:10px;color:var(--muted)">LIVE</span>
+      <span class="pt">Temperature History — Firebase Realtime Stream</span>
+      <span style="font-size:9px;color:var(--m);letter-spacing:1px">LIVE · 40 POINTS</span>
     </div>
-    <div class="pb"><div class="chart-wrap"><canvas id="myChart"></canvas></div></div>
+    <div class="pb" style="padding:14px 18px">
+      <div class="chart-wrap"><canvas id="myChart"></canvas></div>
+    </div>
   </div>
 
-  <!-- LOWER -->
-  <div class="lower">
+  <!-- BOTTOM GRID -->
+  <div class="bottom-grid">
 
-    <!-- CONTROLS -->
-    <div class="panel">
+    <!-- CONTROL -->
+    <div class="panel slide-up">
       <div class="ph">
-        <span class="pt">⚡ Controls</span>
-        <span id="mode-tag" style="font-size:10px;color:var(--cyan);letter-spacing:2px">MODE: --</span>
+        <span class="pt">Control Interface</span>
+        <span id="mode-tag" style="font-size:9px;color:var(--c);letter-spacing:2px">MODE: --</span>
       </div>
       <div class="pb">
-        <div class="mode-row">
-          <button class="mbtn" id="btn-auto"   onclick="sendControl({mode:'auto'})">⚙ AUTO</button>
-          <button class="mbtn" id="btn-manual" onclick="sendControl({mode:'manual'})">🖐 MANUAL</button>
+        <div class="mode-grid">
+          <button class="mbtn active" id="btn-auto" onclick="sendControl({mode:'auto'})">⚙ AUTO</button>
+          <button class="mbtn" id="btn-manual" onclick="sendControl({mode:'manual'})">✋ MANUAL</button>
         </div>
-        <div class="crow">
-          <div><div class="clbl">Fan / Relay</div><div class="csub" id="fan-sub">Manual mode mein active</div></div>
+
+        <div class="ctrl-row">
+          <div>
+            <div class="ctrl-lbl">Fan / Relay Override</div>
+            <div class="ctrl-sub" id="fan-sub">Manual mode required</div>
+          </div>
           <label class="tgl"><input type="checkbox" id="tgl-fan" onchange="sendControl({fan:this.checked})"><span class="ttrack"></span></label>
         </div>
-        <div class="crow">
-          <div><div class="clbl">Alarm Mute</div><div class="csub">Buzzer silence</div></div>
+
+        <div class="ctrl-row">
+          <div>
+            <div class="ctrl-lbl">Alarm Silence</div>
+            <div class="ctrl-sub">Mute buzzer output</div>
+          </div>
           <label class="tgl"><input type="checkbox" id="tgl-mute" onchange="sendControl({mute:this.checked})"><span class="ttrack"></span></label>
         </div>
-        <div class="crow">
-          <div><div class="clbl">Last Command</div><div class="csub" id="last-cmd">—</div></div>
-          <div id="cmd-dot" style="width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0"></div>
+
+        <div class="ctrl-row">
+          <div>
+            <div class="ctrl-lbl">Last Command</div>
+            <div class="ctrl-sub" id="last-cmd" style="color:var(--c)">—</div>
+          </div>
+          <div id="cmd-dot" style="width:7px;height:7px;background:var(--m);flex-shrink:0;transition:all 0.3s"></div>
+        </div>
+
+        <div class="ctrl-row" style="border:none;padding-bottom:0">
+          <div>
+            <div class="ctrl-lbl">Firebase Rules</div>
+            <div class="ctrl-sub">Must be set to read/write true</div>
+          </div>
+          <a href="https://console.firebase.google.com" target="_blank" style="font-size:9px;color:var(--c);letter-spacing:1px;text-decoration:none;border:1px solid var(--b2);padding:3px 8px">OPEN ↗</a>
         </div>
       </div>
     </div>
 
     <!-- LOG -->
-    <div class="panel">
-      <div class="ph"><span class="pt">📋 Event Log</span><button class="gbtn" onclick="clearLog()">CLEAR</button></div>
+    <div class="panel slide-up">
+      <div class="ph">
+        <span class="pt">System Event Log</span>
+        <button class="sbtn" onclick="clearLog()">CLEAR</button>
+      </div>
       <div class="pb" style="padding:10px 16px">
-        <div class="log-list" id="log-list">
-          <div class="li"><span class="lt">--:--:--</span><span class="lm">System initializing...</span></div>
+        <div class="log-wrap" id="log-list">
+          <div class="log-item"><span class="log-t">--:--:--</span><span class="log-m">AEGIS Sentinel initializing...</span></div>
         </div>
       </div>
     </div>
@@ -276,217 +739,413 @@ footer{position:relative;z-index:10;text-align:center;padding:12px;font-size:9px
   </div>
 </main>
 
-<footer>AEGIS SENTINEL v4.0 &nbsp;·&nbsp; FIREBASE (data) + RAILWAY (control) &nbsp;·&nbsp; ANSH SINGH</footer>
+<footer>AEGIS SENTINEL v4.0 &nbsp;·&nbsp; ESP32 → FIREBASE (realtime) + RAILWAY (control) &nbsp;·&nbsp; ANSH SINGH</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-let db = null, chart = null;
-let RAILWAY = '';
-let tempHist = Array(40).fill(null);
-let prev = {};
-let sensorRef = null, ctrlRef = null;
+// ════════════════════════════
+// BACKGROUND PARTICLE CANVAS
+// ════════════════════════════
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let particles = [];
 
-// Clock
-setInterval(() => {
-  document.getElementById('hdr-clock').textContent = new Date().toTimeString().slice(0,8);
-}, 1000);
+function resizeBg() {
+  bgCanvas.width  = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
 
-// Chart
-function initChart() {
-  chart = new Chart(document.getElementById('myChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: Array(40).fill(''),
-      datasets: [{ data: tempHist, borderColor:'#00e5ff', borderWidth:1.5, backgroundColor:'rgba(0,229,255,0.05)', fill:true, tension:0.45, pointRadius:0 }]
+for(let i=0;i<60;i++){
+  particles.push({
+    x: Math.random()*window.innerWidth,
+    y: Math.random()*window.innerHeight,
+    r: Math.random()*1.5+0.3,
+    vx:(Math.random()-0.5)*0.3,
+    vy:(Math.random()-0.5)*0.3,
+    a: Math.random()*0.5+0.1
+  });
+}
+
+function animBg(){
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  particles.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0) p.x=bgCanvas.width;
+    if(p.x>bgCanvas.width) p.x=0;
+    if(p.y<0) p.y=bgCanvas.height;
+    if(p.y>bgCanvas.height) p.y=0;
+    bgCtx.beginPath();
+    bgCtx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    bgCtx.fillStyle=`rgba(0,212,255,${p.a})`;
+    bgCtx.fill();
+  });
+
+  // Draw connecting lines
+  particles.forEach((p,i) => {
+    particles.slice(i+1).forEach(p2 => {
+      const d=Math.hypot(p.x-p2.x,p.y-p2.y);
+      if(d<120){
+        bgCtx.beginPath();
+        bgCtx.moveTo(p.x,p.y);
+        bgCtx.lineTo(p2.x,p2.y);
+        bgCtx.strokeStyle=`rgba(0,212,255,${0.08*(1-d/120)})`;
+        bgCtx.lineWidth=0.5;
+        bgCtx.stroke();
+      }
+    });
+  });
+  requestAnimationFrame(animBg);
+}
+animBg();
+
+// ════════════════════════════
+// RADIAL GAUGE DRAW
+// ════════════════════════════
+function drawRadialGauge(canvasId, value, min, max, color='#00d4ff') {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  const cx=W/2, cy=H-10;
+  const r=70;
+  const startA = Math.PI;
+  const endA   = 2*Math.PI;
+  const pct = Math.min(Math.max((value-min)/(max-min),0),1);
+  const valA = startA + pct*(endA-startA);
+
+  ctx.clearRect(0,0,W,H);
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,startA,endA);
+  ctx.strokeStyle='rgba(10,32,53,0.8)';
+  ctx.lineWidth=8;
+  ctx.lineCap='round';
+  ctx.stroke();
+
+  // Glow fill
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,startA,valA);
+  ctx.strokeStyle=color;
+  ctx.lineWidth=8;
+  ctx.lineCap='round';
+  ctx.shadowColor=color;
+  ctx.shadowBlur=12;
+  ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Tick marks
+  for(let i=0;i<=10;i++){
+    const a=startA+i/10*(endA-startA);
+    const x1=cx+Math.cos(a)*(r-14);
+    const y1=cy+Math.sin(a)*(r-14);
+    const x2=cx+Math.cos(a)*(r-8);
+    const y2=cy+Math.sin(a)*(r-8);
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2,y2);
+    ctx.strokeStyle=i%5===0?color:'rgba(30,70,100,0.6)';
+    ctx.lineWidth=i%5===0?2:1;
+    ctx.shadowBlur=i%5===0?4:0;
+    ctx.shadowColor=color;
+    ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+}
+
+// ════════════════════════════
+// CHART
+// ════════════════════════════
+let chart=null;
+let tempHist=Array(40).fill(null);
+
+function initChart(){
+  chart=new Chart(document.getElementById('myChart').getContext('2d'),{
+    type:'line',
+    data:{
+      labels:Array(40).fill(''),
+      datasets:[{
+        data:tempHist,
+        borderColor:'#00d4ff',
+        borderWidth:1.5,
+        backgroundColor:(ctx)=>{
+          const g=ctx.chart.ctx.createLinearGradient(0,0,0,120);
+          g.addColorStop(0,'rgba(0,212,255,0.15)');
+          g.addColorStop(1,'rgba(0,212,255,0)');
+          return g;
+        },
+        fill:true,tension:0.4,pointRadius:0,
+      },{
+        data:Array(40).fill(35),
+        borderColor:'rgba(255,109,0,0.3)',
+        borderWidth:1,borderDash:[4,4],
+        pointRadius:0,fill:false,
+      }]
     },
-    options: {
-      responsive:true, maintainAspectRatio:false, animation:{duration:200},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:200},
       plugins:{legend:{display:false}},
       scales:{
         x:{display:false},
-        y:{min:20,max:50,grid:{color:'rgba(12,32,48,0.9)'},ticks:{color:'#244560',font:{family:'JetBrains Mono',size:10}}}
+        y:{
+          min:20,max:50,
+          grid:{color:'rgba(10,32,53,0.8)'},
+          ticks:{color:'#3a6a88',font:{family:'Share Tech Mono',size:10}}
+        }
       }
     }
   });
 }
 
-// Connect both
-function connectAll() {
-  const apiKey    = document.getElementById('c-apikey').value.trim();
-  const dbUrl     = document.getElementById('c-dburl').value.trim();
-  const projectId = document.getElementById('c-projid').value.trim();
-  RAILWAY         = document.getElementById('c-railway').value.trim().replace(/\/$/,'');
+// ════════════════════════════
+// CLOCK + UPTIME
+// ════════════════════════════
+const startTime=Date.now();
+let updateCount=0;
 
-  if (!apiKey || !dbUrl || !projectId || !RAILWAY) { alert('Saare fields fill karo!'); return; }
+setInterval(()=>{
+  const now=new Date();
+  document.getElementById('hdr-clock').textContent=now.toTimeString().slice(0,8);
+  const up=Math.floor((Date.now()-startTime)/1000);
+  const h=Math.floor(up/3600).toString().padStart(2,'0');
+  const m=Math.floor((up%3600)/60).toString().padStart(2,'0');
+  const s=(up%60).toString().padStart(2,'0');
+  document.getElementById('sys-uptime').textContent=`${h}:${m}:${s}`;
+},1000);
 
-  // Firebase init
-  try {
+// ════════════════════════════
+// FIREBASE + RAILWAY
+// ════════════════════════════
+let db=null, RAILWAY='', sensorRef=null, ctrlRef=null;
+let prev={};
+let lastDataTime=null;
+
+setInterval(()=>{
+  if(lastDataTime){
+    const age=Math.floor((Date.now()-lastDataTime)/1000);
+    document.getElementById('sys-age').textContent=age<60?age+'s':Math.floor(age/60)+'m';
+  }
+},2000);
+
+function connectAll(){
+  const apiKey   =document.getElementById('c-apikey').value.trim();
+  const dbUrl    =document.getElementById('c-dburl').value.trim();
+  const projId   =document.getElementById('c-projid').value.trim();
+  RAILWAY        =document.getElementById('c-railway').value.trim().replace(/\/$/,'');
+
+  if(!apiKey||!dbUrl||!projId||!RAILWAY){alert('All fields required!');return;}
+
+  try{
     let app;
-    try { app = firebase.app(); } catch(e) { app = firebase.initializeApp({ apiKey, databaseURL: dbUrl, projectId }); }
-    db = firebase.database(app);
-  } catch(e) { log('Firebase error: ' + e.message, 'a'); return; }
+    try{app=firebase.app();}catch(e){app=firebase.initializeApp({apiKey,databaseURL:dbUrl,projectId:projId});}
+    db=firebase.database(app);
+  }catch(e){log('Firebase init error: '+e.message,'a');return;}
 
   document.getElementById('cfg-modal').classList.remove('show');
-  setBadge('fb', true, 'FIREBASE LIVE');
-  setBadge('rw', true, 'RAILWAY READY');
-  log('Firebase + Railway connected ✓', 'ok');
+  setBadge('fb',true,'FIREBASE');
+  log('Firebase connected ✓','ok');
+  log('Railway: '+RAILWAY,'ok');
 
   startListening();
   testRailway();
 }
 
-// Firebase realtime listener
-function startListening() {
-  if (sensorRef) sensorRef.off();
-  if (ctrlRef)   ctrlRef.off();
+function startListening(){
+  if(sensorRef)sensorRef.off();
+  if(ctrlRef)ctrlRef.off();
 
-  // /sensors — ESP32 data
-  sensorRef = db.ref('/sensors');
-  sensorRef.on('value', snap => {
-    const d = snap.val();
-    if (!d) { log('No data at /sensors', 'w'); return; }
+  sensorRef=db.ref('/sensors');
+  sensorRef.on('value',snap=>{
+    const d=snap.val();
+    if(!d){log('No data at /sensors','w');return;}
+    lastDataTime=Date.now();
+    updateCount++;
+    document.getElementById('sys-updates').textContent=updateCount;
     updateUI(d);
-  }, err => {
-    log('Firebase error: ' + err.message, 'a');
-    setBadge('fb', false, 'FIREBASE ERROR');
+  },err=>{
+    log('Firebase error: '+err.message,'a');
+    setBadge('fb',false,'FIREBASE');
   });
 
-  // /control — sync toggles from Firebase (ESP32 writes back its state)
-  ctrlRef = db.ref('/control');
-  ctrlRef.on('value', snap => {
-    const c = snap.val(); if (!c) return;
-    const ft = document.getElementById('tgl-fan');
-    const mt = document.getElementById('tgl-mute');
-    if (c.fan  !== undefined && ft.checked !== c.fan)  ft.checked  = c.fan;
-    if (c.mute !== undefined && mt.checked !== c.mute) mt.checked  = c.mute;
-    const mode = c.mode || 'auto';
-    document.getElementById('btn-auto').classList.toggle('active', mode==='auto');
-    document.getElementById('btn-manual').classList.toggle('active', mode==='manual');
-    document.getElementById('mode-tag').textContent = 'MODE: ' + mode.toUpperCase();
-    document.getElementById('fan-sub').textContent = mode==='manual' ? 'Manual — toggle se control' : 'Auto — temp se control';
+  ctrlRef=db.ref('/control');
+  ctrlRef.on('value',snap=>{
+    const c=snap.val();if(!c)return;
+    const ft=document.getElementById('tgl-fan');
+    const mt=document.getElementById('tgl-mute');
+    if(c.fan!==undefined&&ft.checked!==c.fan)ft.checked=c.fan;
+    if(c.mute!==undefined&&mt.checked!==c.mute)mt.checked=c.mute;
+    const mode=c.mode||'auto';
+    document.getElementById('btn-auto').classList.toggle('active',mode==='auto');
+    document.getElementById('btn-manual').classList.toggle('active',mode==='manual');
+    document.getElementById('mode-tag').textContent='MODE: '+mode.toUpperCase();
+    document.getElementById('sys-mode').textContent=mode.toUpperCase();
+    document.getElementById('fan-sub').textContent=mode==='manual'?'Toggle override active':'Auto threshold control';
   });
 
-  log('Firebase realtime listeners active', 'ok');
+  log('Realtime listeners active','ok');
 }
 
-// Test Railway connection
-async function testRailway() {
-  try {
-    const res = await fetch(RAILWAY + '/health', { signal: AbortSignal.timeout(6000) });
-    if (res.ok) {
-      setBadge('rw', true, 'RAILWAY LIVE');
-      log('Railway backend online ✓', 'ok');
-    } else {
-      setBadge('rw', false, 'RAILWAY ERROR');
+async function testRailway(){
+  try{
+    const res=await fetch(RAILWAY+'/health',{signal:AbortSignal.timeout(6000)});
+    if(res.ok){
+      setBadge('rw',true,'RAILWAY');
+      log('Railway backend online ✓','ok');
+      document.getElementById('sys-status').textContent='ONLINE';
+      document.getElementById('sys-status').style.color='var(--g)';
+    }else{
+      setBadge('rw',false,'RAILWAY');
     }
-  } catch(e) {
-    setBadge('rw', false, 'RAILWAY OFFLINE');
-    log('Railway: ' + e.message, 'a');
+  }catch(e){
+    setBadge('rw',false,'RAILWAY');
+    log('Railway: '+e.message,'a');
   }
 }
 
-// Update UI from Firebase data
-function updateUI(d) {
-  const temp  = parseFloat(d.temp  ?? 0);
-  const gas   = parseInt(d.gas    ?? 0);
-  const fan   = d.fan   === true || d.fan   === 'true';
-  const alarm = d.alarm === true || d.alarm === 'true';
-  const ts    = d.ts;
+function updateUI(d){
+  const temp =parseFloat(d.temp??0);
+  const gas  =parseInt(d.gas??0);
+  const fan  =d.fan===true||d.fan==='true';
+  const alarm=d.alarm===true||d.alarm==='true';
+  const ts   =d.ts;
 
-  setBadge('fb', true, 'FIREBASE LIVE');
+  setBadge('fb',true,'FIREBASE');
+  setBadge('esp',true,'ESP32');
 
-  // ESP32 online check
-  if (ts !== undefined && prev.ts !== undefined && ts !== prev.ts) {
-    setBadge('esp', true, 'ESP32 LIVE');
-  } else if (ts !== undefined) {
-    setBadge('esp', true, 'ESP32 LIVE');
+  // ── TEMP ──
+  const vt=document.getElementById('v-temp');
+  const gc=document.getElementById('gc-temp');
+  vt.textContent=temp.toFixed(1);
+  const tempPct=Math.min(Math.max((temp-20)/30,0),1);
+  document.getElementById('temp-bar').style.width=(tempPct*100)+'%';
+
+  let tempColor='#00d4ff';
+  if(temp>38){
+    vt.className='radial-val danger';gc.className='gauge-card danger';
+    document.getElementById('s-temp').textContent='⚠ CRITICAL — Overtemp';
+    tempColor='#ff1744';
+    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--o),var(--r))';
+  }else if(temp>35){
+    vt.className='radial-val warn';gc.className='gauge-card warning';
+    document.getElementById('s-temp').textContent='↑ Fan trigger threshold';
+    tempColor='#ff6d00';
+    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--y),var(--o))';
+  }else{
+    vt.className='radial-val ok';gc.className='gauge-card ok';
+    document.getElementById('s-temp').textContent='✓ Normal operating range';
+    tempColor='#00ff88';
+    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--c3),var(--c))';
   }
+  drawRadialGauge('tempGauge',temp,20,50,tempColor);
 
-  // TEMP
-  const vt = document.getElementById('v-temp');
-  vt.textContent = temp.toFixed(1);
-  if (temp>38)      { vt.className='mc-val danger'; document.getElementById('mc-temp').className='mc danger'; document.getElementById('s-temp').textContent='⚠ HIGH'; }
-  else if (temp>35) { vt.className='mc-val warn';   document.getElementById('mc-temp').className='mc warning'; document.getElementById('s-temp').textContent='↑ Fan threshold'; }
-  else              { vt.className='mc-val ok';     document.getElementById('mc-temp').className='mc'; document.getElementById('s-temp').textContent='✓ Normal'; }
-
-  // GAS
-  const vg=document.getElementById('v-gas'), gb=document.getElementById('gbar'), cg=document.getElementById('mc-gas');
+  // ── GAS ──
+  const vg=document.getElementById('v-gas');
+  const gcg=document.getElementById('gc-gas');
   vg.textContent=gas;
-  gb.style.width=Math.min(gas/400*100,100)+'%';
-  if(gas>100)     {vg.className='mc-val danger';cg.className='mc danger';gb.style.background='var(--red)'}
-  else if(gas>70) {vg.className='mc-val warn';cg.className='mc warning';gb.style.background='var(--amber)'}
-  else            {vg.className='mc-val ok';cg.className='mc';gb.style.background='var(--green)'}
+  const gasPct=Math.min(gas/400*100,100);
+  document.getElementById('gas-bar').style.width=gasPct+'%';
 
-  // FAN
-  document.getElementById('v-fan').textContent = fan?'RUNNING':'STOPPED';
-  const pf=document.getElementById('pill-fan'); pf.className='pill '+(fan?'on':'off'); pf.textContent=fan?'● RUNNING':'● STOPPED';
+  let gasColor='#00ff88';
+  if(gas>100){
+    vg.className='radial-val danger';gcg.className='gauge-card danger';
+    document.getElementById('s-gas').textContent='⚠ DANGER — Evacuate!';
+    gasColor='#ff1744';
+    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--o),var(--r))';
+  }else if(gas>70){
+    vg.className='radial-val warn';gcg.className='gauge-card warning';
+    document.getElementById('s-gas').textContent='↑ Approaching limit';
+    gasColor='#ff6d00';
+    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--y),var(--o))';
+  }else{
+    vg.className='radial-val ok';gcg.className='gauge-card ok';
+    document.getElementById('s-gas').textContent='✓ Safe level';
+    gasColor='#00ff88';
+    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--g),var(--c2))';
+  }
+  drawRadialGauge('gasGauge',gas,0,400,gasColor);
+
+  // ── FAN ──
+  document.getElementById('v-fan').textContent=fan?'RUNNING':'STOPPED';
+  document.getElementById('v-fan').className='sc-val '+(fan?'ok':'off');
+  const pf=document.getElementById('pill-fan');
+  pf.className='sc-pill '+(fan?'on':'off');
+  pf.textContent=fan?'● RUNNING':'● STOPPED';
   document.getElementById('s-fan').textContent='Mode: '+(d.mode||'auto').toUpperCase();
 
-  // ALARM
+  // ── ALARM ──
   document.getElementById('v-alarm').textContent=alarm?'ALARM!':'CLEAR';
-  const pa=document.getElementById('pill-alarm'); pa.className='pill '+(alarm?'alm':'safe'); pa.textContent=alarm?'⚠ ALARM':'● SAFE';
+  document.getElementById('v-alarm').className='sc-val '+(alarm?'alm':'ok');
+  const pa=document.getElementById('pill-alarm');
+  pa.className='sc-pill '+(alarm?'alm':'safe');
+  pa.textContent=alarm?'⚠ ALARM':'● SAFE';
   document.getElementById('s-alarm').textContent='Muted: '+(d.muted?'YES':'NO');
-  alarm ? document.getElementById('alarm-strip').classList.add('show') : document.getElementById('alarm-strip').classList.remove('show');
+  document.getElementById('sc-alarm').style.setProperty('--sc-clr',alarm?'var(--r)':'var(--g)');
 
-  // Chart
-  tempHist.push(temp); if(tempHist.length>40) tempHist.shift();
-  if(chart){ chart.data.datasets[0].data=[...tempHist]; chart.update('none'); }
+  // Alarm strip
+  alarm?document.getElementById('alarm-strip').classList.add('show'):document.getElementById('alarm-strip').classList.remove('show');
 
-  // Log changes
-  if(prev.alarm!==undefined && prev.alarm!==alarm) log(alarm?'🚨 Gas ALARM!':'✓ Alarm cleared', alarm?'a':'ok');
-  if(prev.fan!==undefined   && prev.fan!==fan)     log('Fan '+(fan?'started ▶':'stopped ■'), fan?'ok':'w');
+  // ── CHART ──
+  tempHist.push(temp);
+  if(tempHist.length>40)tempHist.shift();
+  if(chart){chart.data.datasets[0].data=[...tempHist];chart.update('none');}
+
+  // ── LOG CHANGES ──
+  if(prev.alarm!==undefined&&prev.alarm!==alarm)log(alarm?'🚨 ALARM TRIGGERED — gas exceeded threshold':'✓ Alarm condition cleared',alarm?'a':'ok');
+  if(prev.fan!==undefined&&prev.fan!==fan)log('Fan relay '+(fan?'ACTIVATED ▶':'DEACTIVATED ■'),fan?'ok':'w');
 
   prev={alarm,fan,ts};
 }
 
-// Send control → Railway (ESP32 fetches from here)
-async function sendControl(payload) {
-  if (!RAILWAY) { alert('Railway URL set karo!'); return; }
-
-  const dot  = document.getElementById('cmd-dot');
-  const last = document.getElementById('last-cmd');
-
-  try {
-    const res = await fetch(RAILWAY + '/control', {
+async function sendControl(payload){
+  if(!RAILWAY){alert('Connect first!');return;}
+  const dot=document.getElementById('cmd-dot');
+  const last=document.getElementById('last-cmd');
+  try{
+    const res=await fetch(RAILWAY+'/control',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(payload),
       signal:AbortSignal.timeout(5000)
     });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-
-    dot.style.background='var(--green)'; dot.style.boxShadow='0 0 8px var(--green)';
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    dot.style.background='var(--g)';dot.style.boxShadow='0 0 10px var(--g)';
     last.textContent=JSON.stringify(payload).replace(/[{}"]/g,'');
-    log('CMD → Railway: '+JSON.stringify(payload), 'ok');
-    setTimeout(()=>{dot.style.background='var(--muted)';dot.style.boxShadow='none'},2000);
-
-    if(payload.fan  !==undefined) document.getElementById('tgl-fan').checked  = payload.fan;
-    if(payload.mute !==undefined) document.getElementById('tgl-mute').checked = payload.mute;
-
-  } catch(e) {
-    dot.style.background='var(--red)';
-    log('CMD failed: '+e.message, 'a');
+    log('CMD → Railway: '+JSON.stringify(payload),'ok');
+    setTimeout(()=>{dot.style.background='var(--m)';dot.style.boxShadow='none';},2000);
+    if(payload.fan!==undefined)document.getElementById('tgl-fan').checked=payload.fan;
+    if(payload.mute!==undefined)document.getElementById('tgl-mute').checked=payload.mute;
+  }catch(e){
+    dot.style.background='var(--r)';
+    log('CMD failed: '+e.message,'a');
   }
 }
 
-// Badges
-function setBadge(id, ok, label) {
-  const b=document.getElementById(id+'-badge'), t=document.getElementById(id+'-txt');
+function setBadge(id,ok,label){
+  const b=document.getElementById(id+'-badge');
+  const t=document.getElementById(id+'-txt');
   b.className='badge '+(ok?'live':'dead');
   t.textContent=label;
 }
 
-// Log
 function log(msg,type=''){
-  const list=document.getElementById('log-list'), t=new Date().toTimeString().slice(0,8);
-  const el=document.createElement('div'); el.className='li';
-  el.innerHTML=`<span class="lt">${t}</span><span class="lm ${type}">${msg}</span>`;
+  const list=document.getElementById('log-list');
+  const t=new Date().toTimeString().slice(0,8);
+  const el=document.createElement('div');el.className='log-item';
+  el.innerHTML=`<span class="log-t">${t}</span><span class="log-m ${type}">${msg}</span>`;
   list.insertBefore(el,list.firstChild);
-  if(list.children.length>60) list.removeChild(list.lastChild);
+  if(list.children.length>80)list.removeChild(list.lastChild);
 }
-function clearLog(){ document.getElementById('log-list').innerHTML=''; log('Log cleared'); }
 
+function clearLog(){
+  document.getElementById('log-list').innerHTML='';
+  log('Log cleared');
+}
+
+// ── INIT ──
 initChart();
+drawRadialGauge('tempGauge',0,20,50,'#00d4ff');
+drawRadialGauge('gasGauge',0,0,400,'#00d4ff');
 </script>
 </body>
 </html>
