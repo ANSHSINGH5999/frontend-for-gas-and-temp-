@@ -1,0 +1,224 @@
+# AEGIS Sentinel — Frontend Dashboard README
+
+## Overview
+
+**AEGIS Sentinel v5.1 Frontend** is a cyberpunk-themed IoT control dashboard built with pure HTML/CSS/JavaScript. It connects to Firebase Realtime Database for live sensor data and Railway.app HTTP backend for sending control commands.
+
+No build tools, no frameworks — just open the HTML file or deploy to any static hosting.
+
+---
+
+## Features
+
+### Real-time Monitoring
+- Live temperature and humidity from DHT11 (via Firebase WebSocket)
+- Live gas concentration from MQ sensor
+- Dual charts: temperature history + gas history (40 data points each)
+- Fan/relay status with countdown timer
+- Alarm/buzzer status with countdown timer
+- Auto color-coding: green (safe) → orange (warning) → red (danger)
+
+### Manual Controls
+- **Auto / Manual mode** toggle
+- **Fan toggle** (works in manual mode only)
+- **Fan Manual OFF** — cancels the 20-second auto timer instantly
+- **Buzzer Manual OFF** — cancels the 20-second buzzer timer instantly
+- **Alarm Mute** toggle — silences buzzer without cancelling timer
+- **Emergency STOP** — kills fan, buzzer, and LED instantly
+
+### Dashboard
+- System diagnostics: temp max/min, humidity, gas max, fan runtime, alarm count
+- Alert history panel with timestamps
+- Real-time event log (100 entries)
+- Railway backend ping latency
+- ESP32 online/offline detection
+- Boot sequence animation
+- Matrix rain background with CRT scanline effect
+
+---
+
+## Setup
+
+### Step 1 — Open the file
+
+Open `index.html` in any modern browser, or deploy to:
+- **Vercel** — drag and drop the file
+- **GitHub Pages** — push to repo, enable Pages
+- **Railway** — place in `public/` folder of backend repo
+
+### Step 2 — Connect on first load
+
+A config modal will appear. Fill in:
+
+| Field | Value |
+|-------|-------|
+| API_KEY | Your Firebase API key |
+| DATABASE_URL | `https://your-project.firebaseio.com` |
+| PROJECT_ID | Your Firebase project ID |
+| BACKEND_URL | `https://your-railway-app.up.railway.app` |
+
+**Pre-filled values** (for AEGIS project):
+```
+API_KEY      : AIzaSyDsHvHnBnq0Kno1aydP6TGvTls2e5OL-J4
+DATABASE_URL : https://knowaboutanshsingh-default-rtdb.firebaseio.com
+PROJECT_ID   : knowaboutanshsingh
+BACKEND_URL  : https://gas-senor-and-fan-production.up.railway.app
+```
+
+Click **INITIALIZE AEGIS SENTINEL** — all three badges should turn green within 5 seconds.
+
+---
+
+## Architecture
+
+```
+ESP32 → Firebase /sensors  (every 1 second, realtime push)
+         ↓
+Frontend ← Firebase WebSocket  (instant update, no polling)
+
+Frontend → Railway POST /control  (when user clicks a button)
+           ↓
+ESP32 ← Railway GET /control  (every 2 seconds)
+```
+
+- **Firebase** is used for sensor data because it uses WebSockets — the browser gets updates instantly when ESP32 writes new data, with zero polling overhead.
+- **Railway** is used for control commands because it allows input validation, logging, and custom endpoints like `/history` and `/stats`.
+
+---
+
+## Header Badges
+
+| Badge | Meaning |
+|-------|---------|
+| FIREBASE LIVE | Connected to Firebase, receiving data |
+| ESP32 LIVE | ESP32 is sending data (updated on each Firebase read) |
+| RAILWAY LIVE | Railway backend is reachable |
+
+---
+
+## Control Panel Reference
+
+| Control | Mode | What it does |
+|---------|------|--------------|
+| [ AUTO ] | Any | Switch to auto mode — thresholds control fan/buzzer |
+| [ MANUAL ] | Any | Switch to manual mode — fan controlled by toggle |
+| Fan Override toggle | Manual only | Turn fan ON or OFF directly |
+| STOP FAN button | Auto | Cancel running 20s fan timer |
+| Alarm Mute toggle | Auto | Silence buzzer without stopping the timer |
+| STOP BUZZ button | Auto | Cancel running 20s buzzer timer |
+| ⚠ EMERGENCY STOP | Any | Immediately kill fan + buzzer + LED |
+
+---
+
+## Countdown Timers
+
+When the fan or buzzer 20-second timer is running, countdown badges appear directly on the metric cards:
+
+```
+Fan card:   [ AUTO OFF IN  17 SEC ]
+Alarm card: [ BUZZER OFF IN 12 SEC ]
+```
+
+The terminal bar at the top also shows:
+```
+FAN_TIMER: 17s | BUZZ_TIMER: 12s
+```
+
+These values come from Firebase — the ESP32 pushes `fanRemaining` and `buzzerRemaining` fields every second.
+
+---
+
+## Diagnostics Panel
+
+| Field | Description |
+|-------|-------------|
+| TEMP MAX | Highest temperature seen this session |
+| TEMP MIN | Lowest temperature seen this session |
+| HUMIDITY | Current humidity % from DHT11 |
+| GAS MAX | Highest gas ADC value this session |
+| FAN RUNTIME | Total seconds fan has been ON this session |
+| ALARM COUNT | Number of gas alarm events this session |
+| ESP32 | ONLINE / OFFLINE |
+| PING | Railway backend latency in ms |
+
+---
+
+## Alert History
+
+Every gas alarm event is logged with timestamp. The alert history panel keeps the last 20 alerts. Click [CLR] to clear.
+
+---
+
+## Browser Compatibility
+
+Works in all modern browsers:
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+Requires JavaScript enabled. Uses:
+- Firebase JS SDK v9 (compat)
+- Chart.js v4
+- Canvas API (matrix rain background)
+- Fetch API (Railway control calls)
+- AbortSignal.timeout (connection timeouts)
+
+---
+
+## Customization
+
+All color variables are in CSS `:root`:
+
+```css
+:root {
+  --g1: #00ff41;   /* Primary green — metric values */
+  --r:  #ff0040;   /* Red — alarms and danger */
+  --o:  #ff6600;   /* Orange — warnings and countdowns */
+  --y:  #ffdd00;   /* Yellow — warnings */
+  --c:  #00ffcc;   /* Cyan — info and badges */
+}
+```
+
+Gas/temp thresholds displayed in the UI (bottom of alert history panel):
+- Gas alarm: 700 raw ADC
+- Fan ON: 35°C
+- Buzzer/Fan timer: 20 seconds
+
+---
+
+## File Structure
+
+```
+index.html          ← Complete single-file app
+```
+
+No dependencies to install. No build step. Just the one file.
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Firebase badge stays red | Wrong credentials or rules | Check API key + set Firebase rules to read/write true |
+| ESP32 badge stays red | No data in `/sensors` | Check ESP32 is running and pushing to Firebase |
+| Railway badge red | Wrong URL or backend down | Check Railway dashboard, verify URL has no trailing slash |
+| Control buttons do nothing | Railway disconnected | Check Railway badge is green first |
+| Countdown timer doesn't show | Firebase push not working | Check ESP32 is pushing `fanRemaining`/`buzzerRemaining` |
+| Charts not updating | Firebase listener failed | Refresh page, re-initialize |
+| Config modal keeps appearing | RAILWAY field empty | Fill in Railway URL and click Initialize |
+
+---
+
+## Version History
+
+| Version | Changes |
+|---------|---------|
+| v5.1 | Manual OFF buttons, Emergency STOP button, countdown timers from Firebase, alert history panel |
+| v5.0 | Humidity card added, dual charts, diagnostics panel |
+| v4.0 | Hybrid architecture (Firebase data + Railway control), 3 connection badges |
+
+---
+
+*AEGIS Sentinel — Ansh Singh | B.Tech ECE | Chennai*
