@@ -1,0 +1,219 @@
+# AEGIS Sentinel — ESP32 Firmware README
+
+## Overview
+
+**AEGIS Sentinel v6.0** is the ESP32 firmware for a real-time IoT environmental monitoring system. It reads temperature/humidity from a DHT11 sensor and gas concentration from an MQ gas sensor, then pushes live data to Firebase Realtime Database while fetching control commands from a Railway.app HTTP backend.
+
+---
+
+## Hardware Required
+
+| Component | Pin | Notes |
+|-----------|-----|-------|
+| MQ Gas Sensor | GPIO 34 (AOUT) | Needs 5V VCC, not 3.3V |
+| DHT11 | GPIO 25 | Needs 10kΩ pull-up resistor to VCC |
+| Buzzer (passive) | GPIO 27 | Uses tone() function |
+| LED (alarm) | GPIO 26 | Use 220Ω series resistor |
+| Relay (fan) | GPIO 14 | Active LOW — LOW = fan ON |
+
+### Wiring Quick Reference
+
+```
+DHT11:
+  VCC  → 3.3V or 5V
+  GND  → GND
+  DATA → GPIO 25 + 10kΩ resistor to VCC
+
+MQ Gas Sensor:
+  VCC  → 5V  (MUST be 5V, not 3.3V)
+  GND  → GND
+  AOUT → GPIO 34
+
+Buzzer:
+  (+)  → GPIO 27
+  (-)  → GND
+
+LED:
+  (+)  → GPIO 26 → 220Ω → LED anode
+  (-)  → GND
+
+Relay Module:
+  VCC  → 5V
+  GND  → GND
+  IN   → GPIO 14
+  COM  → Fan power line
+  NO   → Fan (Normally Open)
+```
+
+---
+
+## Required Libraries
+
+Install via Arduino IDE Library Manager:
+
+1. **Firebase ESP Client** — by Mobizt
+2. **DHT sensor library** — by Adafruit
+3. **Adafruit Unified Sensor** — by Adafruit
+4. **ArduinoJson** — by Benoit Blanchon (v6.x)
+
+---
+
+## Configuration
+
+Edit these values at the top of `aegis_v6.ino`:
+
+```cpp
+const char* WIFI_SSID  = "YourWiFiName";
+const char* WIFI_PASS  = "YourWiFiPassword";
+const char* SERVER_URL = "https://your-railway-app.up.railway.app";
+
+#define FIREBASE_API_KEY  "your-firebase-api-key"
+#define FIREBASE_DB_URL   "https://your-project.firebaseio.com"
+```
+
+---
+
+## System Logic
+
+### Gas Alarm (Buzzer)
+- Gas ADC value > `GAS_ALARM_THRESHOLD` (700) → Buzzer turns ON
+- Buzzer plays beep pattern (500ms ON / 200ms OFF) for **exactly 20 seconds**
+- After 20 seconds → Buzzer automatically turns OFF
+- Re-triggers only after gas drops below threshold and rises again (debounce)
+- Can be stopped early from frontend via `forceStopBuzz` command
+
+### Temperature Fan
+- Temperature ≥ `TEMP_FAN_ON_C` (35.0°C) → Fan/Relay turns ON
+- Fan runs for **exactly 20 seconds** then automatically turns OFF
+- Hysteresis: fan won't re-trigger until temperature drops below `TEMP_FAN_OFF_C` (32.0°C) first
+- Can be stopped early from frontend via `forceStopFan` command
+
+### Emergency Stop
+- Immediately kills fan, buzzer, and LED
+- System stays disabled until `emergencyStop: false` is sent from frontend
+
+### Operating Modes
+- **Auto mode**: All logic runs automatically based on sensor thresholds
+- **Manual mode**: Fan controlled directly by frontend toggle; buzzer disabled
+
+---
+
+## Firebase Data Structure
+
+ESP32 writes to `/sensors` node every 1 second:
+
+```json
+{
+  "temp": 28.5,
+  "humidity": 62.0,
+  "gas": 320,
+  "fan": false,
+  "alarm": false,
+  "dhtOK": true,
+  "mode": "auto",
+  "muted": false,
+  "emergency": false,
+  "fanTimerActive": false,
+  "fanRemaining": 0,
+  "buzzerActive": false,
+  "buzzerRemaining": 0,
+  "uptime": 1234
+}
+```
+
+ESP32 reads from `/control` node via Railway (not directly from Firebase).
+
+---
+
+## Railway Control Commands
+
+ESP32 fetches `GET /control` from Railway every 2 seconds:
+
+```json
+{
+  "mode": "auto",
+  "fan": false,
+  "mute": false,
+  "forceStopFan": false,
+  "forceStopBuzz": false,
+  "emergencyStop": false
+}
+```
+
+---
+
+## Firebase Rules
+
+Set in Firebase Console → Realtime Database → Rules:
+
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+```
+
+---
+
+## Serial Monitor Output
+
+Baud rate: **115200**
+
+Expected output after successful boot:
+```
+╔══════════════════════════════════════════╗
+║   AEGIS SENTINEL v6.0 — PRODUCTION        ║
+╚══════════════════════════════════════════╝
+
+🌡️  DHT11 init on GPIO 25
+   First reading: 28.5°C | 62%
+📶 Connecting to Ansh12@.....
+✅ WiFi OK | IP: 192.168.1.105 | RSSI: -52 dBm
+🔥 Firebase: anonymous auth OK
+
+🚀 AEGIS SENTINEL READY
+   Firebase   : ✅ CONNECTED
+   Railway    : https://gas-senor-and-fan-production.up.railway.app
+   Gas THR    : 700 ADC
+   Temp ON    : 35.0°C
+   Temp OFF   : 32.0°C
+   Timers     : 20s each
+
+🌡 28.5°C | 62% | 315 | Fan:OFF(0s) | Buzz:OFF(0s) | auto
+🔥 Firebase ✓
+🚂 ctrl: mode=auto fan=0 mute=0 fsFan=0 fsBuzz=0 emerg=0
+```
+
+---
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| DHT11 reads NaN | Missing 10kΩ pull-up resistor | Add 10kΩ between DATA and VCC |
+| DHT11 always 0.0°C | Wrong pin number | Check `#define PIN_DHT` matches wiring |
+| Gas always 0 | MQ sensor on 3.3V | Connect MQ VCC to 5V |
+| Gas always 4095 | Sensor needs warmup | Wait 24-48h for new MQ sensor |
+| Railway fetch failed | HTTPS SSL issue | Use v6.1 with `setInsecure()` |
+| Firebase push fails | Wrong rules | Set `.read`/`.write` = true |
+| Fan not turning | Active-LOW confusion | LOW signal = relay ON |
+| Buzzer no sound | Active vs passive | Use passive buzzer with `tone()` |
+| WiFi timeout | Wrong credentials or 5GHz | ESP32 supports 2.4GHz only |
+
+---
+
+## Version History
+
+| Version | Changes |
+|---------|---------|
+| v6.1 | Railway HTTPS fix (`setInsecure()`), DHT11 5-retry init |
+| v6.0 | Struct-based state, proper debounce, hysteresis, single logic call per loop |
+| v5.1 | Manual OFF buttons, Emergency STOP, countdown timers to Firebase |
+| v5.0 | DHT11 added, 20s timer logic |
+| v4.0 | Hybrid architecture: Firebase data + Railway control |
+
+---
+
+*AEGIS Sentinel — Ansh Singh | B.Tech ECE | Chennai*
