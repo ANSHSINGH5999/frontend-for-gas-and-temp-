@@ -3,735 +3,731 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>AEGIS Sentinel — Command Center</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<title>AEGIS SENTINEL — COMMAND CENTER</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
 <style>
 :root {
-  --bg0:#000a0f; --bg1:#010d17; --bg2:#021525;
-  --b1:#0a2035; --b2:#0f2d47; --b3:#163d5e;
-  --c:#00d4ff; --c2:#00ffcc; --c3:#0099ff;
-  --g:#00ff88; --r:#ff1744; --o:#ff6d00; --y:#ffd600;
-  --t:#94c8e0; --m:#3a6a88; --dim:#1a3d56;
-  --glow:0 0 20px rgba(0,212,255,0.4);
-  --glow2:0 0 30px rgba(0,212,255,0.6);
+  --bg:#000000;
+  --bg1:#030a03;
+  --bg2:#061006;
+  --g1:#00ff41;
+  --g2:#00cc33;
+  --g3:#008f1f;
+  --g4:#004d10;
+  --gdim:rgba(0,255,65,0.06);
+  --gbright:rgba(0,255,65,0.85);
+  --c:#00ffcc;
+  --c2:#00d4ff;
+  --r:#ff0040;
+  --y:#ffdd00;
+  --o:#ff6600;
+  --muted:rgba(0,255,65,0.35);
+  --border:rgba(0,255,65,0.18);
+  --border2:rgba(0,255,65,0.35);
 }
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{font-size:14px;scroll-behavior:smooth}
+html{font-size:14px}
 
 body{
-  background:var(--bg0);
-  color:var(--t);
+  background:var(--bg);
+  color:var(--g1);
   font-family:'Share Tech Mono',monospace;
   min-height:100vh;
   overflow-x:hidden;
-  cursor:crosshair;
+  cursor:none;
 }
 
-/* ── CANVAS BG ── */
-#bg-canvas{position:fixed;inset:0;z-index:0;opacity:0.4}
+/* CUSTOM CURSOR */
+#cursor{
+  width:20px;height:20px;
+  border:1px solid var(--g1);
+  position:fixed;pointer-events:none;z-index:9999;
+  transform:translate(-50%,-50%);
+  transition:transform 0.05s;
+  box-shadow:0 0 8px var(--g1),inset 0 0 4px rgba(0,255,65,0.2);
+}
+#cursor::before{
+  content:'';position:absolute;top:50%;left:50%;
+  width:4px;height:4px;background:var(--g1);
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 6px var(--g1);
+}
+#cursor-trail{position:fixed;pointer-events:none;z-index:9998}
 
-/* ── SCANLINES ── */
-.scanlines{
-  position:fixed;inset:0;z-index:1;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,0.018) 2px,rgba(0,212,255,0.018) 4px);
+/* MATRIX RAIN */
+#matrix-canvas{position:fixed;inset:0;z-index:0;opacity:0.12}
+
+/* CRT EFFECT */
+.crt-overlay{
+  position:fixed;inset:0;z-index:500;pointer-events:none;
+}
+.crt-overlay::before{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.4) 1px,rgba(0,0,0,0.4) 2px);
+  animation:scanroll 8s linear infinite;
+}
+.crt-overlay::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.7) 100%);
+}
+@keyframes scanroll{from{background-position:0 0}to{background-position:0 200px}}
+
+/* PHOSPHOR GLOW */
+.pglow{text-shadow:0 0 5px var(--g1),0 0 10px rgba(0,255,65,0.4)}
+
+/* BOOT SCREEN */
+#boot-screen{
+  position:fixed;inset:0;z-index:9000;
+  background:#000;
+  display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  padding:40px;
+}
+#boot-screen.hide{
+  animation:bootHide 0.5s ease forwards;
+}
+@keyframes bootHide{to{opacity:0;pointer-events:none}}
+
+#boot-log{
+  width:100%;max-width:700px;
+  font-family:'Share Tech Mono',monospace;
+  font-size:13px;color:var(--g1);
+  line-height:1.8;
 }
 
-/* ── VIGNETTE ── */
-.vignette{
-  position:fixed;inset:0;z-index:1;pointer-events:none;
-  background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.7) 100%);
+#boot-logo{
+  font-family:'VT323',monospace;
+  font-size:clamp(28px,5vw,52px);
+  color:var(--g1);
+  text-align:center;
+  margin-bottom:30px;
+  text-shadow:0 0 20px var(--g1),0 0 40px rgba(0,255,65,0.3);
+  letter-spacing:6px;
+  animation:logoFlicker 0.1s ease-in-out 3;
 }
+@keyframes logoFlicker{0%,100%{opacity:1}50%{opacity:0.6}}
 
-/* ── HEADER ── */
+.boot-line{display:none;animation:typeIn 0.05s ease forwards}
+.boot-line.show{display:block}
+.boot-ok{color:var(--g1)}
+.boot-warn{color:var(--y)}
+.boot-err{color:var(--r)}
+.boot-bar{color:var(--c)}
+
+/* MAIN */
+#app{
+  position:relative;z-index:10;
+  display:none;
+  min-height:100vh;
+}
+#app.show{display:block;animation:appIn 0.3s ease}
+@keyframes appIn{from{opacity:0}to{opacity:1}}
+
+/* HEADER */
 header{
-  position:sticky;top:0;z-index:200;
-  background:rgba(0,10,15,0.92);
-  backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--b2);
-  padding:0 28px;
+  background:rgba(0,0,0,0.92);
+  border-bottom:1px solid var(--border2);
+  padding:0 24px;height:54px;
   display:flex;align-items:center;justify-content:space-between;
-  height:60px;
+  position:sticky;top:0;z-index:200;
+  backdrop-filter:blur(8px);
 }
-
 header::after{
-  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,var(--c),var(--c2),var(--c),transparent);
-  animation:hline 4s linear infinite;
+  content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--g1),transparent);
+  animation:headerLine 3s ease-in-out infinite;
+}
+@keyframes headerLine{0%,100%{opacity:0.4}50%{opacity:1}}
+
+.brand{display:flex;align-items:center;gap:12px}
+.brand-ascii{
+  font-family:'VT323',monospace;font-size:22px;
+  color:var(--g1);letter-spacing:3px;
+  text-shadow:0 0 12px var(--g1);
+  animation:brandGlitch 6s ease-in-out infinite;
+}
+@keyframes brandGlitch{
+  0%,88%,100%{text-shadow:0 0 12px var(--g1)}
+  90%{text-shadow:-2px 0 var(--r),2px 0 var(--c);transform:translateX(1px)}
+  92%{text-shadow:2px 0 var(--r),-2px 0 var(--c);transform:translateX(-1px)}
+  94%{text-shadow:0 0 12px var(--g1);transform:none}
+}
+.brand-ver{font-size:9px;color:var(--muted);letter-spacing:2px;margin-top:2px}
+
+.hdr-mid{
+  font-family:'Share Tech Mono',monospace;
+  font-size:18px;color:var(--g1);
+  text-shadow:0 0 10px rgba(0,255,65,0.5);
+  letter-spacing:2px;
 }
 
-@keyframes hline{0%{opacity:0.3}50%{opacity:1}100%{opacity:0.3}}
-
-.brand{display:flex;align-items:center;gap:16px}
-
-.logo-hex{
-  width:44px;height:44px;position:relative;
-  display:flex;align-items:center;justify-content:center;
-}
-
-.logo-hex svg{position:absolute;inset:0;animation:rot 8s linear infinite}
-@keyframes rot{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-
-.logo-inner{
-  font-size:18px;z-index:1;
-  filter:drop-shadow(0 0 8px var(--c));
-}
-
-.brand-info{}
-.brand-name{
-  font-family:'Orbitron',monospace;font-size:15px;font-weight:900;
-  color:var(--c);letter-spacing:6px;
-  text-shadow:0 0 20px rgba(0,212,255,0.6);
-  line-height:1;
-}
-.brand-sub{font-size:9px;color:var(--m);letter-spacing:4px;margin-top:3px}
-
-.hdr-center{
-  display:flex;align-items:center;gap:6px;
-  font-family:'Orbitron',monospace;font-size:20px;font-weight:700;
-  color:var(--c);letter-spacing:4px;
-  text-shadow:0 0 15px rgba(0,212,255,0.5);
-}
-
-#hdr-clock{font-family:'Orbitron',monospace;font-size:13px;color:var(--c);letter-spacing:3px;opacity:0.7}
-
-.hdr-right{display:flex;align-items:center;gap:10px}
-
-.status-dot{
-  width:8px;height:8px;border-radius:50%;background:var(--m);
-  transition:all 0.3s;flex-shrink:0;
-}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 .badge{
   display:flex;align-items:center;gap:6px;
-  padding:5px 12px;border-radius:3px;
-  border:1px solid var(--b2);
-  font-size:9px;letter-spacing:2px;
-  background:rgba(1,13,23,0.8);
+  padding:4px 10px;border:1px solid var(--border);
+  font-size:9px;letter-spacing:1.5px;
+  background:rgba(0,255,65,0.03);
   transition:all 0.3s;
-  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
 }
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.badge.live{border-color:rgba(0,255,65,0.5);color:var(--g1)}
+.badge.live .dot{background:var(--g1);box-shadow:0 0 8px var(--g1);animation:blink 1.5s infinite}
+.badge.dead{border-color:rgba(255,0,64,0.5);color:var(--r)}
+.badge.dead .dot{background:var(--r);box-shadow:0 0 8px var(--r);animation:blink 0.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
 
-.badge.live{border-color:rgba(0,255,136,0.4);color:var(--g)}
-.badge.live .status-dot{background:var(--g);box-shadow:0 0 10px var(--g);animation:pulse 1.5s infinite}
-.badge.dead{border-color:rgba(255,23,68,0.4);color:var(--r)}
-.badge.dead .status-dot{background:var(--r);box-shadow:0 0 10px var(--r);animation:pulse 0.6s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+#hdr-clock{font-family:'Share Tech Mono',monospace;font-size:14px;color:var(--g2);letter-spacing:2px}
 
 .cfg-btn{
-  background:rgba(0,212,255,0.06);
-  border:1px solid var(--b3);color:var(--m);
-  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
-  padding:6px 14px;cursor:pointer;transition:all 0.2s;
-  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+  background:none;border:1px solid var(--border2);
+  color:var(--muted);font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:2px;padding:5px 12px;cursor:none;transition:all 0.2s;
 }
-.cfg-btn:hover{border-color:var(--c);color:var(--c);background:rgba(0,212,255,0.12)}
+.cfg-btn:hover{border-color:var(--g1);color:var(--g1);background:var(--gdim)}
 
-/* ── ALARM STRIP ── */
+/* ALARM */
 #alarm-strip{
-  display:none;position:relative;z-index:100;
-  padding:10px 28px;
-  background:rgba(255,23,68,0.08);
-  border-bottom:1px solid rgba(255,23,68,0.4);
+  display:none;padding:8px 24px;z-index:100;position:relative;
+  background:rgba(255,0,64,0.08);border-bottom:1px solid rgba(255,0,64,0.5);
   align-items:center;justify-content:space-between;
-  animation:alm 0.5s ease-in-out infinite alternate;
+  animation:alarmFlash 0.4s ease-in-out infinite alternate;
 }
 #alarm-strip.show{display:flex}
-@keyframes alm{from{background:rgba(255,23,68,0.05)}to{background:rgba(255,23,68,0.15)}}
-
+@keyframes alarmFlash{from{background:rgba(255,0,64,0.05)}to{background:rgba(255,0,64,0.18)}}
 .alarm-msg{
-  font-family:'Orbitron',monospace;font-size:11px;
-  color:var(--r);letter-spacing:4px;
-  text-shadow:0 0 15px var(--r);
-  display:flex;align-items:center;gap:12px;
+  font-family:'Share Tech Mono',monospace;font-size:11px;
+  color:var(--r);letter-spacing:3px;
+  text-shadow:0 0 12px var(--r);
+}
+.rbtn{
+  background:rgba(255,0,64,0.1);border:1px solid rgba(255,0,64,0.5);
+  color:var(--r);font-family:'Share Tech Mono',monospace;
+  font-size:9px;letter-spacing:2px;padding:4px 12px;cursor:none;
 }
 
-.alarm-msg::before{
-  content:'';width:10px;height:10px;border-radius:50%;
-  background:var(--r);box-shadow:0 0 15px var(--r);
-  animation:pulse 0.4s infinite;flex-shrink:0;
-}
-
-/* ── MAIN ── */
+/* MAIN */
 main{
   position:relative;z-index:10;
-  max-width:1280px;margin:0 auto;
-  padding:20px 24px 48px;
+  max-width:1400px;margin:0 auto;
+  padding:18px 20px 40px;
 }
 
-/* ── TOP STATS BAR ── */
-.stats-bar{
-  display:flex;gap:8px;margin-bottom:20px;
-  flex-wrap:wrap;
+/* TERMINAL TOP BAR */
+.term-bar{
+  display:flex;gap:6px;margin-bottom:16px;
+  padding:8px 12px;
+  background:rgba(0,255,65,0.03);
+  border:1px solid var(--border);
+  font-size:10px;letter-spacing:1px;
+  overflow-x:auto;
+  white-space:nowrap;
 }
+.term-item{color:var(--muted)}
+.term-item span{color:var(--g1)}
+.term-sep{color:var(--border2);margin:0 6px}
+.term-blink{animation:tblink 1s step-end infinite}
+@keyframes tblink{0%,100%{opacity:1}50%{opacity:0}}
 
-.stat-chip{
-  display:flex;align-items:center;gap:8px;
-  padding:6px 14px;
-  background:rgba(1,13,23,0.8);
-  border:1px solid var(--b2);
-  border-radius:2px;
-  font-size:10px;letter-spacing:1.5px;
-  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
-}
-
-.stat-chip .label{color:var(--m)}
-.stat-chip .val{color:var(--c);font-family:'Orbitron',monospace;font-size:11px}
-
-/* ── BIG GAUGES ROW ── */
-.gauges-row{
+/* GRID */
+.top-grid{
   display:grid;
-  grid-template-columns:1fr 1fr 280px;
-  gap:16px;
-  margin-bottom:16px;
+  grid-template-columns:1fr 1fr 1fr 1fr;
+  gap:12px;margin-bottom:12px;
 }
+@media(max-width:900px){.top-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.top-grid{grid-template-columns:1fr}}
 
-@media(max-width:900px){.gauges-row{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.gauges-row{grid-template-columns:1fr}}
-
-/* ── GAUGE CARD ── */
-.gauge-card{
-  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
-  border:1px solid var(--b2);
-  border-radius:4px;
-  padding:20px;
-  position:relative;
-  overflow:hidden;
+/* METRIC CARD */
+.mc{
+  background:rgba(0,5,0,0.9);
+  border:1px solid var(--border);
+  padding:16px 18px;
+  position:relative;overflow:hidden;
   transition:border-color 0.3s,box-shadow 0.3s;
+  cursor:none;
 }
+.mc:hover{border-color:var(--border2);box-shadow:0 0 20px rgba(0,255,65,0.06)}
+.mc.danger{border-color:rgba(255,0,64,0.5);box-shadow:0 0 20px rgba(255,0,64,0.08)}
+.mc.warning{border-color:rgba(255,102,0,0.5);box-shadow:0 0 20px rgba(255,102,0,0.08)}
 
-.gauge-card::before{
-  content:'';position:absolute;
-  top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--card-top,var(--c)),transparent);
-  opacity:0.7;
+/* Corner brackets */
+.mc::before,.mc::after{
+  content:'';position:absolute;width:10px;height:10px;
 }
+.mc::before{top:4px;left:4px;border-top:1px solid var(--g3);border-left:1px solid var(--g3)}
+.mc::after{bottom:4px;right:4px;border-bottom:1px solid var(--g3);border-right:1px solid var(--g3)}
 
-.gauge-card::after{
-  content:'';position:absolute;
-  top:0;left:0;bottom:0;width:2px;
-  background:linear-gradient(180deg,var(--card-top,var(--c)),transparent);
-  opacity:0.4;
+.mc-lbl{
+  font-size:9px;letter-spacing:3px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
 }
+.mc-lbl::before{content:'>';color:var(--g3)}
 
-.gauge-card.danger{--card-top:var(--r);border-color:rgba(255,23,68,0.4);box-shadow:0 0 30px rgba(255,23,68,0.08)}
-.gauge-card.warning{--card-top:var(--o);border-color:rgba(255,109,0,0.4);box-shadow:0 0 30px rgba(255,109,0,0.08)}
-.gauge-card.ok{--card-top:var(--g)}
-
-.gc-corner{
-  position:absolute;top:8px;right:8px;
-  font-size:9px;letter-spacing:2px;color:var(--m);
-  opacity:0.6;
-}
-
-.gc-label{
-  font-size:9px;letter-spacing:4px;color:var(--m);
-  text-transform:uppercase;margin-bottom:12px;
-}
-
-/* RADIAL GAUGE */
-.radial-wrap{
-  display:flex;justify-content:center;margin:8px 0 12px;
-  position:relative;
-}
-
-.radial-wrap canvas{filter:drop-shadow(0 0 8px rgba(0,212,255,0.3))}
-
-.radial-center{
-  position:absolute;
-  top:50%;left:50%;transform:translate(-50%,-50%);
-  text-align:center;margin-top:8px;
-}
-
-.radial-val{
-  font-family:'Orbitron',monospace;font-size:28px;font-weight:700;
-  color:var(--c);line-height:1;
-  text-shadow:0 0 20px rgba(0,212,255,0.5);
+.mc-val{
+  font-family:'VT323',monospace;font-size:42px;line-height:1;
+  color:var(--g1);
+  text-shadow:0 0 10px rgba(0,255,65,0.5);
   transition:color 0.3s;
 }
+.mc-val.ok    {color:var(--g1);text-shadow:0 0 10px rgba(0,255,65,0.5)}
+.mc-val.warn  {color:var(--y); text-shadow:0 0 10px rgba(255,221,0,0.5)}
+.mc-val.danger{color:var(--r); text-shadow:0 0 10px rgba(255,0,64,0.6)}
+.mc-val.cyan  {color:var(--c); text-shadow:0 0 10px rgba(0,255,204,0.5)}
 
-.radial-val.ok    {color:var(--g);text-shadow:0 0 20px rgba(0,255,136,0.5)}
-.radial-val.warn  {color:var(--o);text-shadow:0 0 20px rgba(255,109,0,0.5)}
-.radial-val.danger{color:var(--r);text-shadow:0 0 20px rgba(255,23,68,0.6)}
+.mc-unit{font-size:13px;color:var(--muted);margin-left:3px}
+.mc-sub{font-size:9px;color:var(--muted);margin-top:6px;letter-spacing:1px}
 
-.radial-unit{font-size:11px;color:var(--m);margin-top:2px}
+/* Progress bar */
+.pbar{height:3px;background:rgba(0,255,65,0.1);margin-top:10px;overflow:hidden}
+.pbar-fill{height:100%;background:var(--g1);transition:width 0.6s ease,background 0.3s;box-shadow:0 0 6px var(--g1)}
 
-.gc-sub{font-size:10px;color:var(--m);margin-top:4px;text-align:center}
+/* Status pill */
+.spill{
+  display:inline-flex;align-items:center;gap:4px;
+  margin-top:8px;padding:2px 8px;
+  border:1px solid currentColor;font-size:9px;letter-spacing:2px;
+}
+.spill.on  {color:var(--g1);background:rgba(0,255,65,0.06)}
+.spill.off {color:var(--muted);border-color:var(--border)}
+.spill.alm {color:var(--r);background:rgba(255,0,64,0.06)}
+.spill.safe{color:var(--g1);background:rgba(0,255,65,0.06)}
 
-/* LINEAR BAR */
-.lin-bar-wrap{margin:12px 0 8px}
-.lin-bar-track{
-  height:6px;background:var(--b1);border-radius:2px;
+/* MIDDLE GRID */
+.mid-grid{
+  display:grid;
+  grid-template-columns:1fr 380px;
+  gap:12px;margin-bottom:12px;
+}
+@media(max-width:900px){.mid-grid{grid-template-columns:1fr}}
+
+/* PANEL */
+.panel{
+  background:rgba(0,5,0,0.9);
+  border:1px solid var(--border);
   overflow:hidden;position:relative;
 }
-.lin-bar-fill{
-  height:100%;border-radius:2px;
-  background:linear-gradient(90deg,var(--c3),var(--c));
-  transition:width 0.6s ease,background 0.3s;
-  position:relative;
+.panel::before,.panel::after{
+  content:'';position:absolute;width:10px;height:10px;z-index:2;
 }
-.lin-bar-fill::after{
-  content:'';position:absolute;right:0;top:0;bottom:0;width:4px;
-  background:white;opacity:0.6;
-  box-shadow:0 0 8px white;
-}
-.lin-bar-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--m);margin-top:4px}
-
-/* STATUS CARDS */
-.status-col{display:flex;flex-direction:column;gap:12px}
-
-.status-card{
-  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
-  border:1px solid var(--b2);border-radius:4px;
-  padding:16px 18px;flex:1;
-  position:relative;overflow:hidden;
-  transition:all 0.3s;
-}
-
-.status-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:1.5px;
-  background:linear-gradient(90deg,transparent,var(--sc-clr,var(--c)),transparent);
-}
-
-.sc-label{font-size:9px;letter-spacing:3px;color:var(--m);margin-bottom:8px;text-transform:uppercase}
-.sc-val{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;color:var(--c);line-height:1;transition:all 0.3s}
-.sc-val.ok{color:var(--g)}
-.sc-val.off{color:var(--m)}
-.sc-val.alm{color:var(--r)}
-
-.sc-pill{
-  display:inline-flex;align-items:center;gap:5px;
-  margin-top:8px;padding:3px 10px;border-radius:2px;
-  font-size:9px;font-family:'Orbitron',monospace;letter-spacing:1.5px;font-weight:700;
-  border:1px solid currentColor;
-  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
-}
-.sc-pill.on  {color:var(--g);background:rgba(0,255,136,0.08)}
-.sc-pill.off {color:var(--m);background:rgba(26,61,86,0.5);border-color:var(--b2)}
-.sc-pill.alm {color:var(--r);background:rgba(255,23,68,0.08)}
-.sc-pill.safe{color:var(--g);background:rgba(0,255,136,0.08)}
-
-/* ── BOTTOM GRID ── */
-.bottom-grid{
-  display:grid;
-  grid-template-columns:320px 1fr;
-  gap:16px;
-  margin-bottom:16px;
-}
-@media(max-width:800px){.bottom-grid{grid-template-columns:1fr}}
-
-/* ── PANEL ── */
-.panel{
-  background:linear-gradient(135deg,rgba(1,13,23,0.95),rgba(2,21,37,0.9));
-  border:1px solid var(--b2);border-radius:4px;overflow:hidden;
-}
+.panel::before{top:4px;left:4px;border-top:1px solid var(--g3);border-left:1px solid var(--g3)}
+.panel::after{bottom:4px;right:4px;border-bottom:1px solid var(--g3);border-right:1px solid var(--g3)}
 
 .ph{
-  padding:12px 18px;border-bottom:1px solid var(--b1);
+  padding:10px 16px;
+  border-bottom:1px solid var(--border);
+  background:rgba(0,255,65,0.02);
   display:flex;align-items:center;justify-content:space-between;
-  background:rgba(0,212,255,0.03);
 }
-
 .pt{
-  font-family:'Orbitron',monospace;font-size:9px;letter-spacing:3px;
-  color:var(--c);text-transform:uppercase;
+  font-size:9px;letter-spacing:3px;color:var(--g2);
   display:flex;align-items:center;gap:8px;
 }
+.pt::before{content:'//';color:var(--g4)}
 
-.pt::before{
-  content:'';width:4px;height:4px;background:var(--c);
-  box-shadow:0 0 6px var(--c);border-radius:50%;
+.pb{padding:16px}
+.chart-wrap{height:130px;position:relative}
+
+/* BOTTOM GRID */
+.bot-grid{
+  display:grid;
+  grid-template-columns:320px 1fr 300px;
+  gap:12px;
 }
+@media(max-width:1100px){.bot-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.bot-grid{grid-template-columns:1fr}}
 
-.pb{padding:18px}
-
-/* CHART */
-.chart-wrap{height:120px;position:relative}
-
-/* ── CONTROL PANEL ── */
-.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-
+/* CONTROLS */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .mbtn{
-  padding:10px;border-radius:2px;
-  border:1px solid var(--b2);background:transparent;
-  color:var(--m);font-family:'Orbitron',monospace;
-  font-size:9px;letter-spacing:2px;cursor:pointer;
-  transition:all 0.2s;text-transform:uppercase;
-  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+  padding:10px;border:1px solid var(--border);
+  background:rgba(0,255,65,0.02);color:var(--muted);
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
+  cursor:none;transition:all 0.2s;
 }
-.mbtn:hover{border-color:var(--c);color:var(--c);background:rgba(0,212,255,0.08)}
+.mbtn:hover{border-color:var(--g1);color:var(--g1);background:var(--gdim)}
 .mbtn.active{
-  border-color:var(--c);color:var(--c);
-  background:rgba(0,212,255,0.12);
-  box-shadow:0 0 20px rgba(0,212,255,0.15);
+  border-color:var(--g1);color:var(--g1);
+  background:rgba(0,255,65,0.08);
+  box-shadow:0 0 15px rgba(0,255,65,0.1);
 }
 
 .ctrl-row{
   display:flex;align-items:center;justify-content:space-between;
-  padding:11px 0;border-bottom:1px solid rgba(10,32,53,0.8);
+  padding:10px 0;border-bottom:1px solid rgba(0,255,65,0.06);
 }
 .ctrl-row:last-child{border:none}
-
-.ctrl-lbl{font-size:11px;color:white}
-.ctrl-sub{font-size:9px;color:var(--m);margin-top:2px}
+.clbl{font-size:10px;color:rgba(0,255,65,0.7)}
+.csub{font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:1px}
 
 /* TOGGLE */
-.tgl{position:relative;width:50px;height:25px;flex-shrink:0}
+.tgl{position:relative;width:46px;height:22px;flex-shrink:0;cursor:none}
 .tgl input{opacity:0;width:0;height:0}
 .ttrack{
   position:absolute;inset:0;
-  background:rgba(10,32,53,0.8);
-  border-radius:0;border:1px solid var(--b2);
-  cursor:pointer;transition:all 0.2s;
-  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+  background:rgba(0,255,65,0.05);
+  border:1px solid var(--border);cursor:none;transition:all 0.2s;
 }
 .ttrack::before{
-  content:'';position:absolute;
-  width:17px;height:17px;left:3px;top:3px;
-  background:var(--m);border-radius:0;
-  transition:all 0.2s;
+  content:'';position:absolute;width:14px;height:14px;
+  left:3px;top:3px;background:var(--muted);transition:all 0.2s;
 }
-.tgl input:checked+.ttrack{background:rgba(0,255,136,0.15);border-color:var(--g)}
-.tgl input:checked+.ttrack::before{transform:translateX(25px);background:var(--g);box-shadow:0 0 10px var(--g)}
+.tgl input:checked+.ttrack{background:rgba(0,255,65,0.12);border-color:var(--g1)}
+.tgl input:checked+.ttrack::before{transform:translateX(24px);background:var(--g1);box-shadow:0 0 8px var(--g1)}
 
-/* ── LOG ── */
-.log-wrap{height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--b2) transparent}
+/* LOG */
+.log-wrap{height:200px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 .log-item{
-  display:flex;gap:10px;padding:5px 0;
-  border-bottom:1px solid rgba(10,32,53,0.5);
+  display:flex;gap:10px;padding:4px 0;
+  border-bottom:1px solid rgba(0,255,65,0.04);
   font-size:10px;
-  animation:logIn 0.2s ease;
+  animation:logSlide 0.2s ease;
 }
-@keyframes logIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
-.log-t{color:var(--m);min-width:56px;flex-shrink:0}
-.log-m{color:var(--t)}
+@keyframes logSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.log-t{color:var(--muted);min-width:56px;flex-shrink:0}
+.log-prefix{color:var(--g4);margin-right:2px}
+.log-m{color:rgba(0,255,65,0.65)}
 .log-m.w{color:var(--y)}
 .log-m.a{color:var(--r)}
-.log-m.ok{color:var(--g)}
+.log-m.ok{color:var(--g1)}
+.log-m.info{color:var(--c)}
 
-/* SMALL BTN */
-.sbtn{
-  background:none;border:1px solid var(--b2);color:var(--m);
-  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
-  padding:4px 10px;cursor:pointer;border-radius:2px;transition:all 0.2s;
+/* STATS PANEL */
+.stat-list{}
+.stat-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid rgba(0,255,65,0.06);
+  font-size:10px;
 }
-.sbtn:hover{border-color:var(--c);color:var(--c)}
+.stat-row:last-child{border:none}
+.stat-k{color:var(--muted);letter-spacing:1px}
+.stat-v{color:var(--g1);font-family:'VT323',monospace;font-size:16px}
 
-.rbtn{
-  background:rgba(255,23,68,0.08);border:1px solid rgba(255,23,68,0.4);
-  color:var(--r);font-family:'Share Tech Mono',monospace;
-  font-size:9px;letter-spacing:1px;padding:4px 12px;cursor:pointer;border-radius:2px;
+/* MINI CHART */
+.sparkline-wrap{height:40px;margin-top:6px}
+
+/* ALERT HISTORY */
+.alert-list{max-height:140px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.alert-item{
+  display:flex;gap:8px;padding:5px 0;
+  border-bottom:1px solid rgba(0,255,65,0.04);
+  font-size:9px;
 }
+.alert-t{color:var(--muted);flex-shrink:0}
+.alert-m{color:var(--r)}
 
-/* ── CONFIG MODAL ── */
+/* CONFIG MODAL */
 #cfg-modal{
-  display:none;position:fixed;inset:0;
-  background:rgba(0,5,10,0.94);z-index:9999;
+  display:none;position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,0.95);
   align-items:center;justify-content:center;
-  backdrop-filter:blur(12px);
+  backdrop-filter:blur(8px);
 }
 #cfg-modal.show{display:flex}
 
 .cbox{
-  background:linear-gradient(135deg,#010d17,#021525);
-  border:1px solid var(--b3);border-radius:6px;
-  padding:36px;width:min(520px,94vw);
-  box-shadow:0 0 60px rgba(0,212,255,0.12),inset 0 0 60px rgba(0,212,255,0.03);
+  background:#000800;
+  border:1px solid var(--border2);
+  padding:32px;width:min(520px,94vw);
   position:relative;
+  box-shadow:0 0 60px rgba(0,255,65,0.08);
 }
-
-.cbox::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--c),var(--c2),var(--c),transparent);
-}
+.cbox::before,.cbox::after{content:'';position:absolute;width:20px;height:20px}
+.cbox::before{top:6px;left:6px;border-top:1.5px solid var(--g1);border-left:1.5px solid var(--g1)}
+.cbox::after{bottom:6px;right:6px;border-bottom:1.5px solid var(--g1);border-right:1.5px solid var(--g1)}
 
 .cbox h2{
-  font-family:'Orbitron',monospace;color:var(--c);
-  font-size:14px;letter-spacing:4px;margin-bottom:4px;
+  font-family:'VT323',monospace;color:var(--g1);
+  font-size:22px;letter-spacing:4px;margin-bottom:4px;
+  text-shadow:0 0 15px rgba(0,255,65,0.5);
+}
+.cbox p{font-size:10px;color:var(--muted);margin-bottom:20px;line-height:1.8}
+
+.sec-t{
+  font-size:9px;letter-spacing:3px;color:var(--g3);
+  margin-bottom:10px;padding-bottom:5px;
+  border-bottom:1px solid var(--border);
 }
 
-.cbox p{font-size:10px;color:var(--m);margin-bottom:24px;line-height:1.8;letter-spacing:0.5px}
-
-.sec-title{
-  font-size:9px;letter-spacing:3px;color:var(--c2);
-  text-transform:uppercase;margin-bottom:10px;
-  padding-bottom:6px;border-bottom:1px solid var(--b2);
-  display:flex;align-items:center;gap:8px;
-}
-.sec-title::before{content:'';width:4px;height:4px;background:var(--c2);border-radius:50%;box-shadow:0 0 6px var(--c2)}
-
-.fg{margin-bottom:12px}
-.fg label{display:block;font-size:9px;letter-spacing:2px;color:var(--m);margin-bottom:5px;text-transform:uppercase}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:5px}
 .fg input{
-  width:100%;
-  background:rgba(0,212,255,0.04);
-  border:1px solid var(--b2);border-radius:2px;
-  padding:9px 13px;
-  color:var(--t);font-family:'Share Tech Mono',monospace;font-size:11px;
+  width:100%;background:rgba(0,255,65,0.03);
+  border:1px solid var(--border);padding:8px 12px;
+  color:var(--g1);font-family:'Share Tech Mono',monospace;font-size:11px;
   outline:none;transition:border-color 0.2s;
-  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
 }
-.fg input:focus{border-color:var(--c)}
-.fg input::placeholder{color:var(--m)}
+.fg input:focus{border-color:var(--g1);box-shadow:0 0 10px rgba(0,255,65,0.1)}
+.fg input::placeholder{color:var(--muted)}
 
 .cbtn{
-  width:100%;padding:12px;border-radius:2px;
-  background:linear-gradient(90deg,rgba(0,212,255,0.12),rgba(0,255,204,0.08));
-  border:1px solid var(--c);color:var(--c);
-  font-family:'Orbitron',monospace;font-size:10px;letter-spacing:4px;
-  cursor:pointer;transition:all 0.2s;margin-top:6px;
-  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+  width:100%;padding:11px;margin-top:6px;
+  background:rgba(0,255,65,0.06);
+  border:1px solid var(--g1);color:var(--g1);
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:4px;
+  cursor:none;transition:all 0.2s;
 }
-.cbtn:hover{background:linear-gradient(90deg,rgba(0,212,255,0.22),rgba(0,255,204,0.15));box-shadow:var(--glow)}
+.cbtn:hover{background:rgba(0,255,65,0.12);box-shadow:0 0 20px rgba(0,255,65,0.15)}
 
-/* ── FOOTER ── */
+/* SBTN */
+.sbtn{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
+  padding:3px 10px;cursor:none;transition:all 0.2s;
+}
+.sbtn:hover{border-color:var(--g1);color:var(--g1)}
+
 footer{
   position:relative;z-index:10;text-align:center;
-  padding:14px;font-size:9px;letter-spacing:3px;
-  color:var(--m);border-top:1px solid var(--b1);
+  padding:12px;font-size:9px;letter-spacing:3px;
+  color:var(--muted);border-top:1px solid var(--border);
 }
 
-/* ── CORNER DECORATIONS ── */
-.corner-tl,.corner-br{position:absolute;width:16px;height:16px}
-.corner-tl{top:8px;left:8px;border-top:1.5px solid var(--c);border-left:1.5px solid var(--c)}
-.corner-br{bottom:8px;right:8px;border-bottom:1.5px solid var(--c);border-right:1.5px solid var(--c)}
-
-/* ── ANIMATIONS ── */
-.fade-in{animation:fadeIn 0.6s ease forwards;opacity:0}
-@keyframes fadeIn{to{opacity:1}}
-
-.slide-up{animation:slideUp 0.5s ease forwards;opacity:0;transform:translateY(20px)}
-@keyframes slideUp{to{opacity:1;transform:none}}
-
-/* stagger */
-.fade-in:nth-child(1){animation-delay:0.1s}
-.fade-in:nth-child(2){animation-delay:0.2s}
-.fade-in:nth-child(3){animation-delay:0.3s}
-.fade-in:nth-child(4){animation-delay:0.4s}
-
-/* GLITCH text */
-@keyframes glitch{
-  0%,90%,100%{transform:none;text-shadow:0 0 20px rgba(0,212,255,0.6)}
-  92%{transform:translateX(2px);text-shadow:-2px 0 var(--r),2px 0 var(--g)}
-  94%{transform:translateX(-2px);text-shadow:2px 0 var(--r),-2px 0 var(--g)}
-  96%{transform:none}
-}
-.brand-name{animation:glitch 8s ease-in-out infinite}
-
+/* RESPONSIVE */
 @media(max-width:480px){
-  header{padding:0 14px}
-  .hdr-center{display:none}
-  main{padding:14px 12px 32px}
+  .hdr-mid{display:none}
+  main{padding:12px 10px 32px}
 }
+
+/* LOADING INDICATOR */
+.ld{display:inline-block;animation:ldSpin 1s linear infinite}
+@keyframes ldSpin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 
-<canvas id="bg-canvas"></canvas>
-<div class="scanlines"></div>
-<div class="vignette"></div>
+<!-- CUSTOM CURSOR -->
+<div id="cursor"></div>
 
-<!-- ══ CONFIG MODAL ══ -->
+<!-- MATRIX RAIN -->
+<canvas id="matrix-canvas"></canvas>
+
+<!-- CRT OVERLAY -->
+<div class="crt-overlay"></div>
+
+<!-- BOOT SCREEN -->
+<div id="boot-screen">
+  <div id="boot-logo">AEGIS SENTINEL</div>
+  <div id="boot-log"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+<!-- CONFIG MODAL -->
 <div id="cfg-modal" class="show">
   <div class="cbox">
-    <div class="corner-tl"></div>
-    <div class="corner-br"></div>
-    <h2>⚡ AEGIS COMMAND INIT</h2>
-    <p>Dual-source architecture: Firebase realtime data + Railway control backend.</p>
+    <h2>[ SYSTEM INIT ]</h2>
+    <p>> Dual-source architecture. Firebase realtime stream + Railway control backend.<br>> All credentials are stored locally in your browser.</p>
 
-    <div class="sec-title">Firebase — Sensor Stream</div>
-    <div class="fg"><label>API Key</label><input id="c-apikey" value="AIzaSyDsHvHnBnq0Kno1aydP6TGvTls2e5OL-J4"></div>
-    <div class="fg"><label>Database URL</label><input id="c-dburl" value="https://knowaboutanshsingh-default-rtdb.firebaseio.com"></div>
-    <div class="fg"><label>Project ID</label><input id="c-projid" value="knowaboutanshsingh"></div>
+    <div class="sec-t">// FIREBASE — SENSOR DATA STREAM</div>
+    <div class="fg"><label>API_KEY</label><input id="c-apikey" value="AIzaSyDsHvHnBnq0Kno1aydP6TGvTls2e5OL-J4"></div>
+    <div class="fg"><label>DATABASE_URL</label><input id="c-dburl" value="https://knowaboutanshsingh-default-rtdb.firebaseio.com"></div>
+    <div class="fg"><label>PROJECT_ID</label><input id="c-projid" value="knowaboutanshsingh"></div>
 
-    <div class="sec-title" style="margin-top:18px">Railway — Control Backend</div>
-    <div class="fg"><label>Backend URL</label><input id="c-railway" value="https://gas-senor-and-fan-production.up.railway.app"></div>
+    <div class="sec-t" style="margin-top:16px">// RAILWAY — CONTROL BACKEND</div>
+    <div class="fg"><label>BACKEND_URL</label><input id="c-railway" value="https://gas-senor-and-fan-production.up.railway.app"></div>
 
-    <button class="cbtn" onclick="connectAll()">▶ INITIALIZE SYSTEM</button>
+    <button class="cbtn" onclick="connectAll()">▶ INITIALIZE AEGIS SENTINEL</button>
   </div>
 </div>
 
-<!-- ══ HEADER ══ -->
+<!-- HEADER -->
 <header>
   <div class="brand">
-    <div class="logo-hex">
-      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="22,2 40,12 40,32 22,42 4,32 4,12" stroke="#00d4ff" stroke-width="1" fill="none" opacity="0.6"/>
-        <polygon points="22,8 36,16 36,30 22,38 8,30 8,16" stroke="#00ffcc" stroke-width="0.5" fill="none" opacity="0.4"/>
-      </svg>
-      <span class="logo-inner">🛡</span>
-    </div>
-    <div class="brand-info">
-      <div class="brand-name">AEGIS</div>
-      <div class="brand-sub">SENTINEL v4.0</div>
+    <div>
+      <div class="brand-ascii pglow">⬡ AEGIS</div>
+      <div class="brand-ver">SENTINEL v4.0 // HYBRID</div>
     </div>
   </div>
 
-  <div class="hdr-center" id="hdr-clock">--:--:--</div>
+  <div id="hdr-clock" class="hdr-mid">--:--:--</div>
 
   <div class="hdr-right">
-    <div class="badge" id="fb-badge"><span class="status-dot"></span><span id="fb-txt">FIREBASE</span></div>
-    <div class="badge" id="esp-badge"><span class="status-dot"></span><span id="esp-txt">ESP32</span></div>
-    <div class="badge" id="rw-badge"><span class="status-dot"></span><span id="rw-txt">RAILWAY</span></div>
-    <button class="cfg-btn" onclick="document.getElementById('cfg-modal').classList.add('show')">⚙ CFG</button>
+    <div class="badge" id="fb-badge"><span class="dot"></span><span id="fb-txt">FIREBASE</span></div>
+    <div class="badge" id="esp-badge"><span class="dot"></span><span id="esp-txt">ESP32</span></div>
+    <div class="badge" id="rw-badge"><span class="dot"></span><span id="rw-txt">RAILWAY</span></div>
+    <button class="cfg-btn" onclick="document.getElementById('cfg-modal').classList.add('show')">[ CFG ]</button>
   </div>
 </header>
 
-<!-- ══ ALARM STRIP ══ -->
+<!-- ALARM -->
 <div id="alarm-strip">
-  <div class="alarm-msg">CRITICAL — GAS THRESHOLD EXCEEDED — EVACUATE AREA</div>
-  <button class="rbtn" onclick="sendControl({mute:true})">SILENCE ALARM</button>
+  <div class="alarm-msg">!! CRITICAL ALERT — GAS CONCENTRATION EXCEEDED SAFE THRESHOLD — EVACUATE !!</div>
+  <button class="rbtn" onclick="sendControl({mute:true})">[SILENCE]</button>
 </div>
 
-<!-- ══ MAIN ══ -->
 <main>
 
-  <!-- STATS BAR -->
-  <div class="stats-bar">
-    <div class="stat-chip"><span class="label">SYSTEM&nbsp;</span><span class="val" id="sys-status">OFFLINE</span></div>
-    <div class="stat-chip"><span class="label">MODE&nbsp;</span><span class="val" id="sys-mode">--</span></div>
-    <div class="stat-chip"><span class="label">DATA AGE&nbsp;</span><span class="val" id="sys-age">--</span></div>
-    <div class="stat-chip"><span class="label">UPDATES&nbsp;</span><span class="val" id="sys-updates">0</span></div>
-    <div class="stat-chip"><span class="label">UPTIME&nbsp;</span><span class="val" id="sys-uptime">--:--:--</span></div>
+  <!-- TERMINAL BAR -->
+  <div class="term-bar">
+    <span class="term-item">SYS:<span id="t-status">OFFLINE</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">MODE:<span id="t-mode">--</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">UPTIME:<span id="t-uptime">00:00:00</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">DATA:<span id="t-age">--</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">UPDATES:<span id="t-updates">0</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">ALERTS:<span id="t-alerts">0</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item">NET:<span id="t-net">--</span></span>
+    <span class="term-sep">|</span>
+    <span class="term-item" id="t-cursor">█<span class="term-blink">_</span></span>
   </div>
 
-  <!-- GAUGES ROW -->
-  <div class="gauges-row">
+  <!-- TOP METRIC CARDS -->
+  <div class="top-grid">
 
-    <!-- TEMP GAUGE -->
-    <div class="gauge-card fade-in" id="gc-temp">
-      <div class="corner-tl"></div>
-      <div class="gc-corner">THERMAL</div>
-      <div class="gc-label">◈ TEMPERATURE</div>
-      <div class="radial-wrap">
-        <canvas id="tempGauge" width="160" height="100"></canvas>
-        <div class="radial-center">
-          <div class="radial-val" id="v-temp">--</div>
-          <div class="radial-unit">°C</div>
-        </div>
-      </div>
-      <div class="lin-bar-wrap">
-        <div class="lin-bar-track"><div class="lin-bar-fill" id="temp-bar" style="width:0%"></div></div>
-        <div class="lin-bar-labels"><span>20°C</span><span>35°C</span><span>50°C</span></div>
-      </div>
-      <div class="gc-sub" id="s-temp">Waiting for ESP32...</div>
+    <!-- TEMP -->
+    <div class="mc" id="mc-temp">
+      <div class="mc-lbl">TEMPERATURE</div>
+      <div><span class="mc-val ok" id="v-temp">--.-</span><span class="mc-unit">°C</span></div>
+      <div class="pbar"><div class="pbar-fill" id="temp-pbar" style="width:0%"></div></div>
+      <div class="mc-sub" id="s-temp">> WAITING FOR ESP32...</div>
     </div>
 
-    <!-- GAS GAUGE -->
-    <div class="gauge-card fade-in" id="gc-gas">
-      <div class="corner-tl"></div>
-      <div class="gc-corner">CHEMICAL</div>
-      <div class="gc-label">◈ GAS CONCENTRATION</div>
-      <div class="radial-wrap">
-        <canvas id="gasGauge" width="160" height="100"></canvas>
-        <div class="radial-center">
-          <div class="radial-val" id="v-gas">--</div>
-          <div class="radial-unit">ppm</div>
-        </div>
-      </div>
-      <div class="lin-bar-wrap">
-        <div class="lin-bar-track"><div class="lin-bar-fill" id="gas-bar" style="width:0%;background:linear-gradient(90deg,var(--g),var(--c))"></div></div>
-        <div class="lin-bar-labels"><span>0</span><span>100</span><span>400+</span></div>
-      </div>
-      <div class="gc-sub" id="s-gas">Threshold: 100 ppm</div>
+    <!-- GAS -->
+    <div class="mc" id="mc-gas">
+      <div class="mc-lbl">GAS LEVEL</div>
+      <div><span class="mc-val ok" id="v-gas">---</span><span class="mc-unit">ppm</span></div>
+      <div class="pbar"><div class="pbar-fill" id="gas-pbar" style="width:0%;background:var(--g1)"></div></div>
+      <div class="mc-sub" id="s-gas">> THRESHOLD: 100ppm</div>
     </div>
 
-    <!-- STATUS COL -->
-    <div class="status-col fade-in">
+    <!-- FAN -->
+    <div class="mc" id="mc-fan">
+      <div class="mc-lbl">RELAY / FAN</div>
+      <div class="mc-val off" id="v-fan" style="font-size:28px">STOPPED</div>
+      <div id="pill-fan" class="spill off" style="margin-top:10px">● OFFLINE</div>
+      <div class="mc-sub" id="s-fan">> MODE: --</div>
+    </div>
 
-      <div class="status-card" id="sc-fan" style="--sc-clr:var(--c)">
-        <div class="corner-tl"></div>
-        <div class="sc-label">◈ RELAY / FAN</div>
-        <div class="sc-val off" id="v-fan">STOPPED</div>
-        <div id="pill-fan" class="sc-pill off">● OFFLINE</div>
-        <div style="font-size:9px;color:var(--m);margin-top:6px" id="s-fan">Mode: --</div>
-      </div>
-
-      <div class="status-card" id="sc-alarm" style="--sc-clr:var(--g)">
-        <div class="corner-tl"></div>
-        <div class="sc-label">◈ ALARM STATUS</div>
-        <div class="sc-val ok" id="v-alarm">CLEAR</div>
-        <div id="pill-alarm" class="sc-pill safe">● SAFE</div>
-        <div style="font-size:9px;color:var(--m);margin-top:6px" id="s-alarm">Muted: NO</div>
-      </div>
-
+    <!-- ALARM -->
+    <div class="mc" id="mc-alarm">
+      <div class="mc-lbl">ALARM STATUS</div>
+      <div class="mc-val ok" id="v-alarm" style="font-size:28px">CLEAR</div>
+      <div id="pill-alarm" class="spill safe" style="margin-top:10px">● SAFE</div>
+      <div class="mc-sub" id="s-alarm">> MUTED: NO</div>
     </div>
 
   </div>
 
-  <!-- CHART PANEL -->
-  <div class="panel slide-up" style="margin-bottom:16px">
-    <div class="ph">
-      <span class="pt">Temperature History — Firebase Realtime Stream</span>
-      <span style="font-size:9px;color:var(--m);letter-spacing:1px">LIVE · 40 POINTS</span>
+  <!-- MID GRID -->
+  <div class="mid-grid">
+
+    <!-- CHART -->
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">TEMPERATURE HISTORY — FIREBASE REALTIME</span>
+        <span style="font-size:9px;color:var(--muted)">LIVE · 40pts</span>
+      </div>
+      <div class="pb" style="padding:12px 16px">
+        <div class="chart-wrap"><canvas id="myChart"></canvas></div>
+        <!-- GAS MINI CHART -->
+        <div style="margin-top:10px">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">> GAS CONCENTRATION HISTORY</div>
+          <div class="sparkline-wrap"><canvas id="gasChart"></canvas></div>
+        </div>
+      </div>
     </div>
-    <div class="pb" style="padding:14px 18px">
-      <div class="chart-wrap"><canvas id="myChart"></canvas></div>
+
+    <!-- STATS PANEL -->
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">SYSTEM DIAGNOSTICS</span>
+      </div>
+      <div class="pb">
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-k">> TEMP MAX</span><span class="stat-v" id="stat-tmax">--</span></div>
+          <div class="stat-row"><span class="stat-k">> TEMP MIN</span><span class="stat-v" id="stat-tmin">--</span></div>
+          <div class="stat-row"><span class="stat-k">> TEMP AVG</span><span class="stat-v" id="stat-tavg">--</span></div>
+          <div class="stat-row"><span class="stat-k">> GAS MAX</span><span class="stat-v" id="stat-gmax">--</span></div>
+          <div class="stat-row"><span class="stat-k">> GAS AVG</span><span class="stat-v" id="stat-gavg">--</span></div>
+          <div class="stat-row"><span class="stat-k">> ALARM COUNT</span><span class="stat-v" id="stat-alarms">0</span></div>
+          <div class="stat-row"><span class="stat-k">> FAN RUNTIME</span><span class="stat-v" id="stat-fanrt">0s</span></div>
+          <div class="stat-row"><span class="stat-k">> ESP32 STATUS</span><span class="stat-v" id="stat-esp">OFFLINE</span></div>
+        </div>
+      </div>
     </div>
+
   </div>
 
   <!-- BOTTOM GRID -->
-  <div class="bottom-grid">
+  <div class="bot-grid">
 
-    <!-- CONTROL -->
-    <div class="panel slide-up">
+    <!-- CONTROLS -->
+    <div class="panel">
       <div class="ph">
-        <span class="pt">Control Interface</span>
-        <span id="mode-tag" style="font-size:9px;color:var(--c);letter-spacing:2px">MODE: --</span>
+        <span class="pt">CONTROL INTERFACE</span>
+        <span id="mode-tag" style="font-size:9px;color:var(--g2);letter-spacing:2px">--</span>
       </div>
       <div class="pb">
         <div class="mode-grid">
-          <button class="mbtn active" id="btn-auto" onclick="sendControl({mode:'auto'})">⚙ AUTO</button>
-          <button class="mbtn" id="btn-manual" onclick="sendControl({mode:'manual'})">✋ MANUAL</button>
+          <button class="mbtn active" id="btn-auto" onclick="sendControl({mode:'auto'})">[ AUTO ]</button>
+          <button class="mbtn" id="btn-manual" onclick="sendControl({mode:'manual'})">[ MANUAL ]</button>
         </div>
 
         <div class="ctrl-row">
-          <div>
-            <div class="ctrl-lbl">Fan / Relay Override</div>
-            <div class="ctrl-sub" id="fan-sub">Manual mode required</div>
-          </div>
+          <div><div class="clbl">FAN OVERRIDE</div><div class="csub" id="fan-sub">Requires manual mode</div></div>
           <label class="tgl"><input type="checkbox" id="tgl-fan" onchange="sendControl({fan:this.checked})"><span class="ttrack"></span></label>
         </div>
 
         <div class="ctrl-row">
-          <div>
-            <div class="ctrl-lbl">Alarm Silence</div>
-            <div class="ctrl-sub">Mute buzzer output</div>
-          </div>
+          <div><div class="clbl">ALARM SILENCE</div><div class="csub">Mute buzzer output</div></div>
           <label class="tgl"><input type="checkbox" id="tgl-mute" onchange="sendControl({mute:this.checked})"><span class="ttrack"></span></label>
         </div>
 
         <div class="ctrl-row">
-          <div>
-            <div class="ctrl-lbl">Last Command</div>
-            <div class="ctrl-sub" id="last-cmd" style="color:var(--c)">—</div>
-          </div>
-          <div id="cmd-dot" style="width:7px;height:7px;background:var(--m);flex-shrink:0;transition:all 0.3s"></div>
+          <div><div class="clbl">LAST COMMAND</div><div class="csub" id="last-cmd" style="color:var(--g2)">none</div></div>
+          <div id="cmd-dot" style="width:6px;height:6px;background:var(--muted);transition:all 0.3s;flex-shrink:0"></div>
         </div>
 
-        <div class="ctrl-row" style="border:none;padding-bottom:0">
-          <div>
-            <div class="ctrl-lbl">Firebase Rules</div>
-            <div class="ctrl-sub">Must be set to read/write true</div>
-          </div>
-          <a href="https://console.firebase.google.com" target="_blank" style="font-size:9px;color:var(--c);letter-spacing:1px;text-decoration:none;border:1px solid var(--b2);padding:3px 8px">OPEN ↗</a>
+        <div class="ctrl-row" style="border:none">
+          <div><div class="clbl">RAILWAY PING</div><div class="csub" id="rw-ping">--ms</div></div>
+          <button class="sbtn" onclick="pingRailway()">[PING]</button>
         </div>
       </div>
     </div>
 
     <!-- LOG -->
-    <div class="panel slide-up">
+    <div class="panel">
       <div class="ph">
-        <span class="pt">System Event Log</span>
-        <button class="sbtn" onclick="clearLog()">CLEAR</button>
+        <span class="pt">SYSTEM EVENT LOG</span>
+        <button class="sbtn" onclick="clearLog()">[CLR]</button>
       </div>
-      <div class="pb" style="padding:10px 16px">
+      <div class="pb" style="padding:10px 14px">
         <div class="log-wrap" id="log-list">
-          <div class="log-item"><span class="log-t">--:--:--</span><span class="log-m">AEGIS Sentinel initializing...</span></div>
+          <div class="log-item"><span class="log-t">--:--:--</span><span class="log-prefix">$</span><span class="log-m">AEGIS Sentinel initializing...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERT HISTORY -->
+    <div class="panel">
+      <div class="ph">
+        <span class="pt">ALERT HISTORY</span>
+        <button class="sbtn" onclick="clearAlerts()">[CLR]</button>
+      </div>
+      <div class="pb" style="padding:10px 14px">
+        <div class="alert-list" id="alert-list">
+          <div style="font-size:9px;color:var(--muted);padding:8px 0">No alerts recorded.</div>
+        </div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+          <div style="font-size:9px;color:var(--muted);letter-spacing:1px">> THRESHOLDS</div>
+          <div style="font-size:9px;color:var(--g3);margin-top:4px;line-height:1.8">
+            GAS ALARM: 100ppm<br>
+            FAN ON: 35.0°C<br>
+            FAN OFF: 32.0°C<br>
+            TEMP CRIT: 38.0°C
+          </div>
         </div>
       </div>
     </div>
@@ -739,413 +735,544 @@ footer{
   </div>
 </main>
 
-<footer>AEGIS SENTINEL v4.0 &nbsp;·&nbsp; ESP32 → FIREBASE (realtime) + RAILWAY (control) &nbsp;·&nbsp; ANSH SINGH</footer>
+<footer>
+  AEGIS SENTINEL v4.0 // ESP32 → FIREBASE (realtime) ↔ RAILWAY (control) // ANSH SINGH // <span id="ft-time">--:--:--</span>
+</footer>
+
+</div><!-- /app -->
 
 <script>
-// ════════════════════════════
-// BACKGROUND PARTICLE CANVAS
-// ════════════════════════════
-const bgCanvas = document.getElementById('bg-canvas');
-const bgCtx = bgCanvas.getContext('2d');
-let particles = [];
+'use strict';
 
-function resizeBg() {
-  bgCanvas.width  = window.innerWidth;
-  bgCanvas.height = window.innerHeight;
+// ══════════════════════════════
+// CURSOR
+// ══════════════════════════════
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+});
+
+// ══════════════════════════════
+// MATRIX RAIN
+// ══════════════════════════════
+const mc = document.getElementById('matrix-canvas');
+const mx = mc.getContext('2d');
+let cols = 0, drops = [];
+
+function initMatrix() {
+  mc.width  = window.innerWidth;
+  mc.height = window.innerHeight;
+  cols  = Math.floor(mc.width / 16);
+  drops = Array(cols).fill(1);
 }
-resizeBg();
-window.addEventListener('resize', resizeBg);
 
-for(let i=0;i<60;i++){
-  particles.push({
-    x: Math.random()*window.innerWidth,
-    y: Math.random()*window.innerHeight,
-    r: Math.random()*1.5+0.3,
-    vx:(Math.random()-0.5)*0.3,
-    vy:(Math.random()-0.5)*0.3,
-    a: Math.random()*0.5+0.1
+function drawMatrix() {
+  mx.fillStyle = 'rgba(0,0,0,0.05)';
+  mx.fillRect(0, 0, mc.width, mc.height);
+  mx.fillStyle = '#00ff41';
+  mx.font = '14px Share Tech Mono';
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF!@#$%^&*<>?';
+  drops.forEach((y, i) => {
+    const ch = chars[Math.floor(Math.random() * chars.length)];
+    const x = i * 16;
+    mx.globalAlpha = Math.random() * 0.8 + 0.1;
+    mx.fillText(ch, x, y * 16);
+    mx.globalAlpha = 1;
+    if (y * 16 > mc.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
   });
 }
 
-function animBg(){
-  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
-  particles.forEach(p => {
-    p.x+=p.vx; p.y+=p.vy;
-    if(p.x<0) p.x=bgCanvas.width;
-    if(p.x>bgCanvas.width) p.x=0;
-    if(p.y<0) p.y=bgCanvas.height;
-    if(p.y>bgCanvas.height) p.y=0;
-    bgCtx.beginPath();
-    bgCtx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    bgCtx.fillStyle=`rgba(0,212,255,${p.a})`;
-    bgCtx.fill();
-  });
+initMatrix();
+window.addEventListener('resize', initMatrix);
+setInterval(drawMatrix, 50);
 
-  // Draw connecting lines
-  particles.forEach((p,i) => {
-    particles.slice(i+1).forEach(p2 => {
-      const d=Math.hypot(p.x-p2.x,p.y-p2.y);
-      if(d<120){
-        bgCtx.beginPath();
-        bgCtx.moveTo(p.x,p.y);
-        bgCtx.lineTo(p2.x,p2.y);
-        bgCtx.strokeStyle=`rgba(0,212,255,${0.08*(1-d/120)})`;
-        bgCtx.lineWidth=0.5;
-        bgCtx.stroke();
-      }
-    });
-  });
-  requestAnimationFrame(animBg);
-}
-animBg();
+// ══════════════════════════════
+// BOOT SEQUENCE
+// ══════════════════════════════
+const bootLines = [
+  {t:'ok',  d:'AEGIS SENTINEL v4.0.0 — INITIALIZING...'},
+  {t:'bar', d:'[████████████████████] 100% — KERNEL LOADED'},
+  {t:'ok',  d:'> Hardware abstraction layer... OK'},
+  {t:'ok',  d:'> GPIO pins configured: 34(GAS) 27(BUZZ) 26(LED) 14(RELAY)'},
+  {t:'ok',  d:'> WiFi module initialized... OK'},
+  {t:'warn',d:'> Firebase SDK: Loading credentials...'},
+  {t:'ok',  d:'> Firebase SDK: CONNECTED ✓'},
+  {t:'ok',  d:'> Railway backend: Establishing connection...'},
+  {t:'ok',  d:'> Railway backend: ONLINE ✓'},
+  {t:'ok',  d:'> Realtime listeners: ACTIVE'},
+  {t:'ok',  d:'> Chart modules: LOADED'},
+  {t:'ok',  d:'> Matrix renderer: ACTIVE'},
+  {t:'bar', d:'[████████████████████] BOOT COMPLETE'},
+  {t:'ok',  d:''},
+  {t:'ok',  d:'  ▶ AEGIS SENTINEL IS ONLINE'},
+  {t:'ok',  d:'  ▶ STANDING BY FOR SENSOR DATA...'},
+];
 
-// ════════════════════════════
-// RADIAL GAUGE DRAW
-// ════════════════════════════
-function drawRadialGauge(canvasId, value, min, max, color='#00d4ff') {
-  const canvas = document.getElementById(canvasId);
-  const ctx = canvas.getContext('2d');
-  const W=canvas.width, H=canvas.height;
-  const cx=W/2, cy=H-10;
-  const r=70;
-  const startA = Math.PI;
-  const endA   = 2*Math.PI;
-  const pct = Math.min(Math.max((value-min)/(max-min),0),1);
-  const valA = startA + pct*(endA-startA);
+let bootIdx = 0;
+const bootLog = document.getElementById('boot-log');
 
-  ctx.clearRect(0,0,W,H);
-
-  // Track
-  ctx.beginPath();
-  ctx.arc(cx,cy,r,startA,endA);
-  ctx.strokeStyle='rgba(10,32,53,0.8)';
-  ctx.lineWidth=8;
-  ctx.lineCap='round';
-  ctx.stroke();
-
-  // Glow fill
-  ctx.beginPath();
-  ctx.arc(cx,cy,r,startA,valA);
-  ctx.strokeStyle=color;
-  ctx.lineWidth=8;
-  ctx.lineCap='round';
-  ctx.shadowColor=color;
-  ctx.shadowBlur=12;
-  ctx.stroke();
-  ctx.shadowBlur=0;
-
-  // Tick marks
-  for(let i=0;i<=10;i++){
-    const a=startA+i/10*(endA-startA);
-    const x1=cx+Math.cos(a)*(r-14);
-    const y1=cy+Math.sin(a)*(r-14);
-    const x2=cx+Math.cos(a)*(r-8);
-    const y2=cy+Math.sin(a)*(r-8);
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);
-    ctx.lineTo(x2,y2);
-    ctx.strokeStyle=i%5===0?color:'rgba(30,70,100,0.6)';
-    ctx.lineWidth=i%5===0?2:1;
-    ctx.shadowBlur=i%5===0?4:0;
-    ctx.shadowColor=color;
-    ctx.stroke();
-    ctx.shadowBlur=0;
+function runBoot() {
+  if (bootIdx >= bootLines.length) {
+    setTimeout(() => {
+      document.getElementById('boot-screen').classList.add('hide');
+      setTimeout(() => {
+        document.getElementById('boot-screen').style.display = 'none';
+        document.getElementById('app').classList.add('show');
+        document.getElementById('cfg-modal').classList.add('show');
+      }, 500);
+    }, 600);
+    return;
   }
+
+  const line = bootLines[bootIdx];
+  const el = document.createElement('div');
+  el.className = `boot-line show boot-${line.t}`;
+  el.textContent = line.d;
+  bootLog.appendChild(el);
+  bootLog.scrollTop = bootLog.scrollHeight;
+  bootIdx++;
+
+  setTimeout(runBoot, bootIdx < 3 ? 300 : 80);
 }
 
-// ════════════════════════════
-// CHART
-// ════════════════════════════
-let chart=null;
-let tempHist=Array(40).fill(null);
+setTimeout(runBoot, 800);
 
-function initChart(){
-  chart=new Chart(document.getElementById('myChart').getContext('2d'),{
-    type:'line',
-    data:{
-      labels:Array(40).fill(''),
-      datasets:[{
-        data:tempHist,
-        borderColor:'#00d4ff',
-        borderWidth:1.5,
-        backgroundColor:(ctx)=>{
-          const g=ctx.chart.ctx.createLinearGradient(0,0,0,120);
-          g.addColorStop(0,'rgba(0,212,255,0.15)');
-          g.addColorStop(1,'rgba(0,212,255,0)');
-          return g;
+// ══════════════════════════════
+// CLOCK + UPTIME
+// ══════════════════════════════
+const startTime = Date.now();
+let updateCount = 0, alarmCount = 0, fanRuntime = 0;
+let fanOn = false;
+
+setInterval(() => {
+  const now = new Date();
+  const ts = now.toTimeString().slice(0, 8);
+  document.getElementById('hdr-clock').textContent = ts;
+  document.getElementById('ft-time').textContent = ts;
+
+  const up = Math.floor((Date.now() - startTime) / 1000);
+  const h = Math.floor(up / 3600).toString().padStart(2,'0');
+  const m = Math.floor((up % 3600) / 60).toString().padStart(2,'0');
+  const s = (up % 60).toString().padStart(2,'0');
+  document.getElementById('t-uptime').textContent = `${h}:${m}:${s}`;
+
+  if (fanOn) fanRuntime++;
+  document.getElementById('stat-fanrt').textContent = fanRuntime + 's';
+}, 1000);
+
+// ══════════════════════════════
+// DATA HISTORY
+// ══════════════════════════════
+let tempHist = Array(40).fill(null);
+let gasHist  = Array(40).fill(null);
+let tempStats = { min:999, max:-999, sum:0, count:0 };
+let gasStats  = { min:999, max:-999, sum:0, count:0 };
+let lastDataTime = null;
+let alertHistory = [];
+
+setInterval(() => {
+  if (lastDataTime) {
+    const age = Math.floor((Date.now() - lastDataTime) / 1000);
+    document.getElementById('t-age').textContent = age < 60 ? age + 's' : Math.floor(age/60) + 'm';
+    if (age > 10) setBadge('esp', false, 'ESP32');
+  }
+}, 2000);
+
+// ══════════════════════════════
+// CHARTS
+// ══════════════════════════════
+let tempChart = null, gasChart = null;
+
+function initCharts() {
+  const commonOpts = {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 200 },
+    plugins: { legend: { display: false } },
+  };
+
+  tempChart = new Chart(document.getElementById('myChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array(40).fill(''),
+      datasets: [
+        {
+          data: tempHist,
+          borderColor: '#00ff41',
+          borderWidth: 1.5,
+          backgroundColor: ctx => {
+            const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 130);
+            g.addColorStop(0, 'rgba(0,255,65,0.2)');
+            g.addColorStop(1, 'rgba(0,255,65,0)');
+            return g;
+          },
+          fill: true, tension: 0.4, pointRadius: 0,
         },
-        fill:true,tension:0.4,pointRadius:0,
-      },{
-        data:Array(40).fill(35),
-        borderColor:'rgba(255,109,0,0.3)',
-        borderWidth:1,borderDash:[4,4],
-        pointRadius:0,fill:false,
+        {
+          data: Array(40).fill(35),
+          borderColor: 'rgba(255,102,0,0.4)',
+          borderWidth: 1,
+          borderDash: [4, 4],
+          pointRadius: 0, fill: false,
+        }
+      ]
+    },
+    options: {
+      ...commonOpts,
+      scales: {
+        x: { display: false },
+        y: {
+          min: 20, max: 50,
+          grid: { color: 'rgba(0,255,65,0.05)' },
+          ticks: { color: '#004d10', font: { family: 'Share Tech Mono', size: 9 } }
+        }
+      }
+    }
+  });
+
+  gasChart = new Chart(document.getElementById('gasChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: Array(40).fill(''),
+      datasets: [{
+        data: gasHist,
+        borderColor: '#00ffcc',
+        borderWidth: 1,
+        backgroundColor: 'rgba(0,255,204,0.05)',
+        fill: true, tension: 0.4, pointRadius: 0,
       }]
     },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      animation:{duration:200},
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{display:false},
-        y:{
-          min:20,max:50,
-          grid:{color:'rgba(10,32,53,0.8)'},
-          ticks:{color:'#3a6a88',font:{family:'Share Tech Mono',size:10}}
+    options: {
+      ...commonOpts,
+      scales: {
+        x: { display: false },
+        y: {
+          min: 0,
+          grid: { color: 'rgba(0,255,65,0.04)' },
+          ticks: { color: '#004d10', font: { family: 'Share Tech Mono', size: 9 } }
         }
       }
     }
   });
 }
 
-// ════════════════════════════
-// CLOCK + UPTIME
-// ════════════════════════════
-const startTime=Date.now();
-let updateCount=0;
-
-setInterval(()=>{
-  const now=new Date();
-  document.getElementById('hdr-clock').textContent=now.toTimeString().slice(0,8);
-  const up=Math.floor((Date.now()-startTime)/1000);
-  const h=Math.floor(up/3600).toString().padStart(2,'0');
-  const m=Math.floor((up%3600)/60).toString().padStart(2,'0');
-  const s=(up%60).toString().padStart(2,'0');
-  document.getElementById('sys-uptime').textContent=`${h}:${m}:${s}`;
-},1000);
-
-// ════════════════════════════
+// ══════════════════════════════
 // FIREBASE + RAILWAY
-// ════════════════════════════
-let db=null, RAILWAY='', sensorRef=null, ctrlRef=null;
-let prev={};
-let lastDataTime=null;
+// ══════════════════════════════
+let db = null, RAILWAY = '', sensorRef = null, ctrlRef = null;
+let prev = {};
 
-setInterval(()=>{
-  if(lastDataTime){
-    const age=Math.floor((Date.now()-lastDataTime)/1000);
-    document.getElementById('sys-age').textContent=age<60?age+'s':Math.floor(age/60)+'m';
-  }
-},2000);
+function connectAll() {
+  const apiKey   = document.getElementById('c-apikey').value.trim();
+  const dbUrl    = document.getElementById('c-dburl').value.trim();
+  const projId   = document.getElementById('c-projid').value.trim();
+  RAILWAY        = document.getElementById('c-railway').value.trim().replace(/\/$/, '');
 
-function connectAll(){
-  const apiKey   =document.getElementById('c-apikey').value.trim();
-  const dbUrl    =document.getElementById('c-dburl').value.trim();
-  const projId   =document.getElementById('c-projid').value.trim();
-  RAILWAY        =document.getElementById('c-railway').value.trim().replace(/\/$/,'');
+  if (!apiKey || !dbUrl || !projId || !RAILWAY) { alert('All fields required!'); return; }
 
-  if(!apiKey||!dbUrl||!projId||!RAILWAY){alert('All fields required!');return;}
-
-  try{
+  try {
     let app;
-    try{app=firebase.app();}catch(e){app=firebase.initializeApp({apiKey,databaseURL:dbUrl,projectId:projId});}
-    db=firebase.database(app);
-  }catch(e){log('Firebase init error: '+e.message,'a');return;}
+    try { app = firebase.app(); } catch(e) { app = firebase.initializeApp({ apiKey, databaseURL: dbUrl, projectId: projId }); }
+    db = firebase.database(app);
+  } catch(e) { log('Firebase error: ' + e.message, 'a'); return; }
 
   document.getElementById('cfg-modal').classList.remove('show');
-  setBadge('fb',true,'FIREBASE');
-  log('Firebase connected ✓','ok');
-  log('Railway: '+RAILWAY,'ok');
+  setBadge('fb', true, 'FIREBASE');
+  log('Firebase connected ✓', 'ok');
+  log('Railway: ' + RAILWAY, 'info');
 
   startListening();
   testRailway();
+  pingRailway();
 }
 
-function startListening(){
-  if(sensorRef)sensorRef.off();
-  if(ctrlRef)ctrlRef.off();
+function startListening() {
+  if (sensorRef) sensorRef.off();
+  if (ctrlRef)   ctrlRef.off();
 
-  sensorRef=db.ref('/sensors');
-  sensorRef.on('value',snap=>{
-    const d=snap.val();
-    if(!d){log('No data at /sensors','w');return;}
-    lastDataTime=Date.now();
+  sensorRef = db.ref('/sensors');
+  sensorRef.on('value', snap => {
+    const d = snap.val();
+    if (!d) { log('No data at /sensors — ESP32 connected?', 'w'); return; }
+    lastDataTime = Date.now();
     updateCount++;
-    document.getElementById('sys-updates').textContent=updateCount;
+    document.getElementById('t-updates').textContent = updateCount;
     updateUI(d);
-  },err=>{
-    log('Firebase error: '+err.message,'a');
-    setBadge('fb',false,'FIREBASE');
+  }, err => {
+    log('Firebase error: ' + err.message, 'a');
+    setBadge('fb', false, 'FIREBASE');
   });
 
-  ctrlRef=db.ref('/control');
-  ctrlRef.on('value',snap=>{
-    const c=snap.val();if(!c)return;
-    const ft=document.getElementById('tgl-fan');
-    const mt=document.getElementById('tgl-mute');
-    if(c.fan!==undefined&&ft.checked!==c.fan)ft.checked=c.fan;
-    if(c.mute!==undefined&&mt.checked!==c.mute)mt.checked=c.mute;
-    const mode=c.mode||'auto';
-    document.getElementById('btn-auto').classList.toggle('active',mode==='auto');
-    document.getElementById('btn-manual').classList.toggle('active',mode==='manual');
-    document.getElementById('mode-tag').textContent='MODE: '+mode.toUpperCase();
-    document.getElementById('sys-mode').textContent=mode.toUpperCase();
-    document.getElementById('fan-sub').textContent=mode==='manual'?'Toggle override active':'Auto threshold control';
+  ctrlRef = db.ref('/control');
+  ctrlRef.on('value', snap => {
+    const c = snap.val(); if (!c) return;
+    const ft = document.getElementById('tgl-fan');
+    const mt = document.getElementById('tgl-mute');
+    if (c.fan  !== undefined && ft.checked !== c.fan)  ft.checked  = c.fan;
+    if (c.mute !== undefined && mt.checked !== c.mute) mt.checked  = c.mute;
+    const mode = c.mode || 'auto';
+    document.getElementById('btn-auto').classList.toggle('active', mode === 'auto');
+    document.getElementById('btn-manual').classList.toggle('active', mode === 'manual');
+    document.getElementById('mode-tag').textContent = 'MODE:' + mode.toUpperCase();
+    document.getElementById('t-mode').textContent = mode.toUpperCase();
+    document.getElementById('fan-sub').textContent = mode === 'manual' ? 'Override active' : 'Auto threshold ctrl';
   });
 
-  log('Realtime listeners active','ok');
+  log('Realtime listeners active ✓', 'ok');
 }
 
-async function testRailway(){
-  try{
-    const res=await fetch(RAILWAY+'/health',{signal:AbortSignal.timeout(6000)});
-    if(res.ok){
-      setBadge('rw',true,'RAILWAY');
-      log('Railway backend online ✓','ok');
-      document.getElementById('sys-status').textContent='ONLINE';
-      document.getElementById('sys-status').style.color='var(--g)';
-    }else{
-      setBadge('rw',false,'RAILWAY');
+async function testRailway() {
+  try {
+    const r = await fetch(RAILWAY + '/health', { signal: AbortSignal.timeout(6000) });
+    if (r.ok) {
+      setBadge('rw', true, 'RAILWAY');
+      log('Railway online ✓', 'ok');
+      document.getElementById('t-status').textContent = 'ONLINE';
+      document.getElementById('t-status').style.color = 'var(--g1)';
+      document.getElementById('t-net').textContent = 'OK';
+    } else {
+      setBadge('rw', false, 'RAILWAY');
     }
-  }catch(e){
-    setBadge('rw',false,'RAILWAY');
-    log('Railway: '+e.message,'a');
+  } catch(e) {
+    setBadge('rw', false, 'RAILWAY');
+    log('Railway error: ' + e.message, 'a');
+    document.getElementById('t-net').textContent = 'ERR';
   }
 }
 
-function updateUI(d){
-  const temp =parseFloat(d.temp??0);
-  const gas  =parseInt(d.gas??0);
-  const fan  =d.fan===true||d.fan==='true';
-  const alarm=d.alarm===true||d.alarm==='true';
-  const ts   =d.ts;
+async function pingRailway() {
+  if (!RAILWAY) return;
+  const t = Date.now();
+  try {
+    await fetch(RAILWAY + '/health', { signal: AbortSignal.timeout(5000) });
+    const ms = Date.now() - t;
+    document.getElementById('rw-ping').textContent = ms + 'ms';
+    document.getElementById('t-net').textContent = ms + 'ms';
+    log('Ping: ' + ms + 'ms', 'info');
+  } catch(e) {
+    document.getElementById('rw-ping').textContent = 'TIMEOUT';
+  }
+}
 
-  setBadge('fb',true,'FIREBASE');
-  setBadge('esp',true,'ESP32');
+// ══════════════════════════════
+// UPDATE UI
+// ══════════════════════════════
+function updateUI(d) {
+  const temp  = parseFloat(d.temp  ?? 0);
+  const gas   = parseInt(d.gas    ?? 0);
+  const fan   = d.fan   === true || d.fan   === 'true';
+  const alarm = d.alarm === true || d.alarm === 'true';
+  const ts    = d.ts;
+
+  setBadge('fb',  true, 'FIREBASE');
+  setBadge('esp', true, 'ESP32');
+  document.getElementById('stat-esp').textContent = 'ONLINE';
+  document.getElementById('stat-esp').style.color = 'var(--g1)';
+  fanOn = fan;
 
   // ── TEMP ──
-  const vt=document.getElementById('v-temp');
-  const gc=document.getElementById('gc-temp');
-  vt.textContent=temp.toFixed(1);
-  const tempPct=Math.min(Math.max((temp-20)/30,0),1);
-  document.getElementById('temp-bar').style.width=(tempPct*100)+'%';
+  const vt = document.getElementById('v-temp');
+  vt.textContent = temp.toFixed(1);
+  const tpct = Math.min(Math.max((temp - 20) / 30, 0), 1);
+  document.getElementById('temp-pbar').style.width = (tpct * 100) + '%';
 
-  let tempColor='#00d4ff';
-  if(temp>38){
-    vt.className='radial-val danger';gc.className='gauge-card danger';
-    document.getElementById('s-temp').textContent='⚠ CRITICAL — Overtemp';
-    tempColor='#ff1744';
-    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--o),var(--r))';
-  }else if(temp>35){
-    vt.className='radial-val warn';gc.className='gauge-card warning';
-    document.getElementById('s-temp').textContent='↑ Fan trigger threshold';
-    tempColor='#ff6d00';
-    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--y),var(--o))';
-  }else{
-    vt.className='radial-val ok';gc.className='gauge-card ok';
-    document.getElementById('s-temp').textContent='✓ Normal operating range';
-    tempColor='#00ff88';
-    document.getElementById('temp-bar').style.background='linear-gradient(90deg,var(--c3),var(--c))';
+  if (temp > 38) {
+    vt.className = 'mc-val danger';
+    document.getElementById('mc-temp').className = 'mc danger';
+    document.getElementById('s-temp').textContent = '> !! CRITICAL OVERTEMP !!';
+    document.getElementById('temp-pbar').style.background = 'var(--r)';
+    document.getElementById('temp-pbar').style.boxShadow = '0 0 8px var(--r)';
+  } else if (temp > 35) {
+    vt.className = 'mc-val warn';
+    document.getElementById('mc-temp').className = 'mc warning';
+    document.getElementById('s-temp').textContent = '> FAN TRIGGER THRESHOLD';
+    document.getElementById('temp-pbar').style.background = 'var(--o)';
+    document.getElementById('temp-pbar').style.boxShadow = '0 0 8px var(--o)';
+  } else {
+    vt.className = 'mc-val ok';
+    document.getElementById('mc-temp').className = 'mc';
+    document.getElementById('s-temp').textContent = '> NORMAL OPERATING RANGE';
+    document.getElementById('temp-pbar').style.background = 'var(--g1)';
+    document.getElementById('temp-pbar').style.boxShadow = '0 0 6px var(--g1)';
   }
-  drawRadialGauge('tempGauge',temp,20,50,tempColor);
+
+  // Temp stats
+  tempStats.min = Math.min(tempStats.min, temp);
+  tempStats.max = Math.max(tempStats.max, temp);
+  tempStats.sum += temp; tempStats.count++;
+  document.getElementById('stat-tmax').textContent = tempStats.max.toFixed(1) + '°C';
+  document.getElementById('stat-tmin').textContent = tempStats.min.toFixed(1) + '°C';
+  document.getElementById('stat-tavg').textContent = (tempStats.sum / tempStats.count).toFixed(1) + '°C';
 
   // ── GAS ──
-  const vg=document.getElementById('v-gas');
-  const gcg=document.getElementById('gc-gas');
-  vg.textContent=gas;
-  const gasPct=Math.min(gas/400*100,100);
-  document.getElementById('gas-bar').style.width=gasPct+'%';
+  const vg = document.getElementById('v-gas');
+  vg.textContent = gas;
+  const gpct = Math.min(gas / 400 * 100, 100);
+  document.getElementById('gas-pbar').style.width = gpct + '%';
 
-  let gasColor='#00ff88';
-  if(gas>100){
-    vg.className='radial-val danger';gcg.className='gauge-card danger';
-    document.getElementById('s-gas').textContent='⚠ DANGER — Evacuate!';
-    gasColor='#ff1744';
-    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--o),var(--r))';
-  }else if(gas>70){
-    vg.className='radial-val warn';gcg.className='gauge-card warning';
-    document.getElementById('s-gas').textContent='↑ Approaching limit';
-    gasColor='#ff6d00';
-    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--y),var(--o))';
-  }else{
-    vg.className='radial-val ok';gcg.className='gauge-card ok';
-    document.getElementById('s-gas').textContent='✓ Safe level';
-    gasColor='#00ff88';
-    document.getElementById('gas-bar').style.background='linear-gradient(90deg,var(--g),var(--c2))';
+  if (gas > 100) {
+    vg.className = 'mc-val danger';
+    document.getElementById('mc-gas').className = 'mc danger';
+    document.getElementById('s-gas').textContent = '> !! DANGER — EVACUATE !!';
+    document.getElementById('gas-pbar').style.background = 'var(--r)';
+    document.getElementById('gas-pbar').style.boxShadow = '0 0 8px var(--r)';
+  } else if (gas > 70) {
+    vg.className = 'mc-val warn';
+    document.getElementById('mc-gas').className = 'mc warning';
+    document.getElementById('s-gas').textContent = '> APPROACHING LIMIT';
+    document.getElementById('gas-pbar').style.background = 'var(--o)';
+    document.getElementById('gas-pbar').style.boxShadow = '0 0 8px var(--o)';
+  } else {
+    vg.className = 'mc-val ok';
+    document.getElementById('mc-gas').className = 'mc';
+    document.getElementById('s-gas').textContent = '> SAFE LEVEL';
+    document.getElementById('gas-pbar').style.background = 'var(--g1)';
+    document.getElementById('gas-pbar').style.boxShadow = '0 0 6px var(--g1)';
   }
-  drawRadialGauge('gasGauge',gas,0,400,gasColor);
+
+  // Gas stats
+  gasStats.min = Math.min(gasStats.min, gas);
+  gasStats.max = Math.max(gasStats.max, gas);
+  gasStats.sum += gas; gasStats.count++;
+  document.getElementById('stat-gmax').textContent = gasStats.max + 'ppm';
+  document.getElementById('stat-gavg').textContent = Math.round(gasStats.sum / gasStats.count) + 'ppm';
 
   // ── FAN ──
-  document.getElementById('v-fan').textContent=fan?'RUNNING':'STOPPED';
-  document.getElementById('v-fan').className='sc-val '+(fan?'ok':'off');
-  const pf=document.getElementById('pill-fan');
-  pf.className='sc-pill '+(fan?'on':'off');
-  pf.textContent=fan?'● RUNNING':'● STOPPED';
-  document.getElementById('s-fan').textContent='Mode: '+(d.mode||'auto').toUpperCase();
+  document.getElementById('v-fan').textContent = fan ? 'RUNNING' : 'STOPPED';
+  document.getElementById('v-fan').className = 'mc-val ' + (fan ? 'ok' : 'off');
+  const pf = document.getElementById('pill-fan');
+  pf.className = 'spill ' + (fan ? 'on' : 'off');
+  pf.textContent = fan ? '● RUNNING' : '● STOPPED';
+  document.getElementById('s-fan').textContent = '> MODE: ' + (d.mode || 'auto').toUpperCase();
 
   // ── ALARM ──
-  document.getElementById('v-alarm').textContent=alarm?'ALARM!':'CLEAR';
-  document.getElementById('v-alarm').className='sc-val '+(alarm?'alm':'ok');
-  const pa=document.getElementById('pill-alarm');
-  pa.className='sc-pill '+(alarm?'alm':'safe');
-  pa.textContent=alarm?'⚠ ALARM':'● SAFE';
-  document.getElementById('s-alarm').textContent='Muted: '+(d.muted?'YES':'NO');
-  document.getElementById('sc-alarm').style.setProperty('--sc-clr',alarm?'var(--r)':'var(--g)');
+  document.getElementById('v-alarm').textContent = alarm ? 'ALARM!' : 'CLEAR';
+  document.getElementById('v-alarm').className = 'mc-val ' + (alarm ? 'danger' : 'ok');
+  const pa = document.getElementById('pill-alarm');
+  pa.className = 'spill ' + (alarm ? 'alm' : 'safe');
+  pa.textContent = alarm ? '⚠ ALARM' : '● SAFE';
+  document.getElementById('s-alarm').textContent = '> MUTED: ' + (d.muted ? 'YES' : 'NO');
 
-  // Alarm strip
-  alarm?document.getElementById('alarm-strip').classList.add('show'):document.getElementById('alarm-strip').classList.remove('show');
+  alarm ? document.getElementById('alarm-strip').classList.add('show')
+        : document.getElementById('alarm-strip').classList.remove('show');
 
-  // ── CHART ──
-  tempHist.push(temp);
-  if(tempHist.length>40)tempHist.shift();
-  if(chart){chart.data.datasets[0].data=[...tempHist];chart.update('none');}
+  // ── CHARTS ──
+  tempHist.push(temp); if (tempHist.length > 40) tempHist.shift();
+  gasHist.push(gas);   if (gasHist.length > 40)  gasHist.shift();
+
+  if (tempChart) { tempChart.data.datasets[0].data = [...tempHist]; tempChart.update('none'); }
+  if (gasChart)  { gasChart.data.datasets[0].data  = [...gasHist];  gasChart.update('none'); }
 
   // ── LOG CHANGES ──
-  if(prev.alarm!==undefined&&prev.alarm!==alarm)log(alarm?'🚨 ALARM TRIGGERED — gas exceeded threshold':'✓ Alarm condition cleared',alarm?'a':'ok');
-  if(prev.fan!==undefined&&prev.fan!==fan)log('Fan relay '+(fan?'ACTIVATED ▶':'DEACTIVATED ■'),fan?'ok':'w');
+  if (prev.alarm !== undefined && prev.alarm !== alarm) {
+    const msg = alarm ? '!! GAS ALARM TRIGGERED — threshold exceeded' : '✓ Alarm condition cleared';
+    log(msg, alarm ? 'a' : 'ok');
+    if (alarm) {
+      alarmCount++;
+      document.getElementById('t-alerts').textContent = alarmCount;
+      document.getElementById('stat-alarms').textContent = alarmCount;
+      addAlert('GAS >' + gas + 'ppm — ALARM');
+    }
+  }
+  if (prev.fan !== undefined && prev.fan !== fan) {
+    log('Fan relay ' + (fan ? 'ACTIVATED ▶' : 'DEACTIVATED ■'), fan ? 'ok' : 'w');
+  }
+  if (prev.temp !== undefined && Math.abs(prev.temp - temp) > 3) {
+    log('Temp Δ: ' + prev.temp.toFixed(1) + '→' + temp.toFixed(1) + '°C', 'w');
+  }
 
-  prev={alarm,fan,ts};
+  prev = { alarm, fan, temp, ts };
 }
 
-async function sendControl(payload){
-  if(!RAILWAY){alert('Connect first!');return;}
-  const dot=document.getElementById('cmd-dot');
-  const last=document.getElementById('last-cmd');
-  try{
-    const res=await fetch(RAILWAY+'/control',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-      signal:AbortSignal.timeout(5000)
+// ══════════════════════════════
+// SEND CONTROL
+// ══════════════════════════════
+async function sendControl(payload) {
+  if (!RAILWAY) { log('Not connected — initialize first', 'a'); return; }
+  const dot  = document.getElementById('cmd-dot');
+  const last = document.getElementById('last-cmd');
+  try {
+    const res = await fetch(RAILWAY + '/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000)
     });
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    dot.style.background='var(--g)';dot.style.boxShadow='0 0 10px var(--g)';
-    last.textContent=JSON.stringify(payload).replace(/[{}"]/g,'');
-    log('CMD → Railway: '+JSON.stringify(payload),'ok');
-    setTimeout(()=>{dot.style.background='var(--m)';dot.style.boxShadow='none';},2000);
-    if(payload.fan!==undefined)document.getElementById('tgl-fan').checked=payload.fan;
-    if(payload.mute!==undefined)document.getElementById('tgl-mute').checked=payload.mute;
-  }catch(e){
-    dot.style.background='var(--r)';
-    log('CMD failed: '+e.message,'a');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    dot.style.background = 'var(--g1)';
+    dot.style.boxShadow  = '0 0 10px var(--g1)';
+    const cmdStr = JSON.stringify(payload).replace(/[{}"]/g, '');
+    last.textContent = cmdStr;
+    log('CMD → Railway: ' + cmdStr, 'ok');
+    setTimeout(() => { dot.style.background = 'var(--muted)'; dot.style.boxShadow = 'none'; }, 2000);
+    if (payload.fan  !== undefined) document.getElementById('tgl-fan').checked  = payload.fan;
+    if (payload.mute !== undefined) document.getElementById('tgl-mute').checked = payload.mute;
+  } catch(e) {
+    dot.style.background = 'var(--r)';
+    log('CMD failed: ' + e.message, 'a');
   }
 }
 
-function setBadge(id,ok,label){
-  const b=document.getElementById(id+'-badge');
-  const t=document.getElementById(id+'-txt');
-  b.className='badge '+(ok?'live':'dead');
-  t.textContent=label;
+// ══════════════════════════════
+// BADGES
+// ══════════════════════════════
+function setBadge(id, ok, label) {
+  const b = document.getElementById(id + '-badge');
+  const t = document.getElementById(id + '-txt');
+  b.className = 'badge ' + (ok ? 'live' : 'dead');
+  t.textContent = label;
 }
 
-function log(msg,type=''){
-  const list=document.getElementById('log-list');
-  const t=new Date().toTimeString().slice(0,8);
-  const el=document.createElement('div');el.className='log-item';
-  el.innerHTML=`<span class="log-t">${t}</span><span class="log-m ${type}">${msg}</span>`;
-  list.insertBefore(el,list.firstChild);
-  if(list.children.length>80)list.removeChild(list.lastChild);
+// ══════════════════════════════
+// LOG
+// ══════════════════════════════
+function log(msg, type = '') {
+  const list = document.getElementById('log-list');
+  const t = new Date().toTimeString().slice(0, 8);
+  const el = document.createElement('div');
+  el.className = 'log-item';
+  el.innerHTML = `<span class="log-t">${t}</span><span class="log-prefix">$</span><span class="log-m ${type}">${msg}</span>`;
+  list.insertBefore(el, list.firstChild);
+  if (list.children.length > 100) list.removeChild(list.lastChild);
 }
 
-function clearLog(){
-  document.getElementById('log-list').innerHTML='';
+function clearLog() {
+  document.getElementById('log-list').innerHTML = '';
   log('Log cleared');
 }
 
-// ── INIT ──
-initChart();
-drawRadialGauge('tempGauge',0,20,50,'#00d4ff');
-drawRadialGauge('gasGauge',0,0,400,'#00d4ff');
+// ══════════════════════════════
+// ALERT HISTORY
+// ══════════════════════════════
+function addAlert(msg) {
+  const list = document.getElementById('alert-list');
+  const t = new Date().toTimeString().slice(0, 8);
+
+  // Clear empty state
+  const empty = list.querySelector('div[style]');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = 'alert-item';
+  el.innerHTML = `<span class="alert-t">${t}</span><span class="alert-m">⚠ ${msg}</span>`;
+  list.insertBefore(el, list.firstChild);
+  if (list.children.length > 20) list.removeChild(list.lastChild);
+  alertHistory.push({ t, msg });
+}
+
+function clearAlerts() {
+  document.getElementById('alert-list').innerHTML = '<div style="font-size:9px;color:var(--muted);padding:8px 0">No alerts recorded.</div>';
+  alertHistory = [];
+  alarmCount = 0;
+  document.getElementById('t-alerts').textContent = 0;
+  document.getElementById('stat-alarms').textContent = 0;
+}
+
+// ══════════════════════════════
+// INIT
+// ══════════════════════════════
+initCharts();
 </script>
 </body>
 </html>
